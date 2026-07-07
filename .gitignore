@@ -1,0 +1,10 @@
+.pio/
+platformio.local.ini
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
+*.bin
+*.elf
+*.code-workspace
+docs/publish/*fpscreenshot*

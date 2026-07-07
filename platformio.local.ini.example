@@ -1,0 +1,19 @@
+[wifi_secrets]
+wifi_flags_8inch =
+  -D WIFI_SSID=\"your-ssid-here\"
+  -D WIFI_PASSWORD=\"your-password-here\"
+wifi_flags_15inch =
+  -D WIFI_SSID=\"your-ssid-here\"
+  -D WIFI_PASSWORD=\"your-password-here\"
+
+; Optional override: sacrificial first pixel on the 8" chain (vestigial, see
+; the [led_chain] note in platformio.ini). Only enable this if your build
+; physically has an extra dark WS2812B spliced in ahead of the rings.
+; Replicable builds do not need it. Uncomment to enable:
+; [led_chain]
+; chain_flags_8inch =
+;   -D CLOCK_PIXEL_COUNT=98
+;   -D CENTER_PIXEL_INDEX=97
+;   -D RING_PIXEL_OFFSET=1
+;   -D SACRIFICIAL_PIXEL_ENABLED=1
+;   -D SACRIFICIAL_PIXEL_INDEX=0

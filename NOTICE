@@ -1,0 +1,12 @@
+ChronoBloom ESP32-C3
+Copyright (c) 2026 Maestro8484
+
+This project is based on the NeoPixel Ring Clock by Steve Manley (2015),
+used under the MIT License.
+Original source: https://www.dropbox.com/sh/1uthw4znj5bmmzl/AACjGNHsKtgZ5gjzJ061gnFaa
+Arduino sketch V4.0, dated 31 December 2015.
+
+Firmware lineage:
+  Steve Manley — Arduino Nano, DS3234 RTC, MSGEQ7, 3-ring NeoPixel concept (2015)
+  Mike van der Sluis — Chinese ring clone adaptation, simplified firmware (2020)
+  Maestro8484 — ESP32-C3 port, WiFi, NTP, OTA, web UI, Focus Reminders (2022-2026)

@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:08,000
+ChronoBloom — ESP32-C3 NeoPixel clock
+
+2
+00:00:08,000 --> 00:00:12,600
+Quarter-hour chime — twice, exactly as configured
+
+3
+00:00:12,600 --> 00:00:22,600
+Half-hour chime — twice, exactly as configured
+
+4
+00:00:22,600 --> 00:00:38,600
+Top-of-hour chime — twice, exactly as configured
+
+5
+00:00:38,600 --> 00:01:12,600
+Hour animation showcase — Ceremony, Galaxy Spin, Supernova, Comet Relay
+
+6
+00:01:12,600 --> 00:01:25,100
+Focus reminder nudges — gentle, subtle, never a flash
+
+7
+00:01:25,100 --> 00:01:39,100
+Auto-brightness — VEML7700 sensor, now 3-4x faster response
+
+8
+00:01:39,100 --> 00:01:49,100
+Open source — github / printables / hackaday.io
