@@ -138,21 +138,20 @@
 
 ## Technical Evolution Summary
 
-| Aspect              | Steve (2015)        | Mike (2020)         | ChronoBloom (2026)  |
-|---------------------|---------------------|---------------------|---------------------|
-| Microcontroller     | Arduino Nano        | Nano clone (CH340G) | XIAO ESP32-C3       |
-| Timekeeping         | DS3234 RTC          | DS3234 RTC          | NTP + RTC fallback* |
-| Button input        | Polled GPIO7/8      | Polled GPIO7/8      | ISR GPIO3/4**       |
-| WiFi                | None                | None                | Built-in            |
-| Web UI              | None                | None                | Full-featured       |
-| Sensors             | MSGEQ7 audio        | None                | VEML7700 lux        |
-| Settings storage    | Hardcoded           | Hardcoded           | EEPROM v7           |
-| Animations          | Audio-reactive      | Basic chime         | 15+ variants        |
-| Platform            | Arduino IDE         | Arduino IDE         | PlatformIO          |
-| Power               | USB / barrel jack   | USB / barrel jack   | USB-C / VIN pin     |
+| Aspect              | Steve (2015)        | Mike (2020)         | ChronoBloom (current) |
+|---------------------|---------------------|---------------------|------------------------|
+| Microcontroller     | Arduino Nano        | Nano clone (CH340G) | XIAO ESP32-C3          |
+| Timekeeping         | DS3234 RTC          | DS3234 RTC          | NTP (no RTC chip)      |
+| Button input        | Polled GPIO7/8      | Polled GPIO7/8      | Polled GPIO5/9*        |
+| WiFi                | None                | None                | Built-in               |
+| Web UI              | None                | None                | Full-featured          |
+| Sensors             | MSGEQ7 audio        | None                | VEML7700 lux           |
+| Settings storage    | Hardcoded           | Hardcoded           | EEPROM (versioned)     |
+| Animations          | Audio-reactive      | Basic chime         | 16 palette-aware       |
+| Platform            | Arduino IDE         | Arduino IDE         | PlatformIO             |
+| Power               | USB / barrel jack   | USB / barrel jack   | USB-C / VIN pin        |
 
-\* *RTC support pending, not yet implemented*  
-\*\* *Known issue: GPIO3/4 are JTAG pins, causing spurious ISR fires*
+\* *An earlier ESP32-C3 revision tried interrupt-driven buttons on GPIO3/4, which are JTAG-strapped pins and fired spuriously — reverted to polled GPIO5/9, the same reliable approach Steve used from the start.*
 
 ---
 
@@ -209,10 +208,10 @@ Multiple makers have built variants inspired by Steve's original:
 
 ## What's Next?
 
-### Immediate (2026)
-- OTA firmware updates (eliminate ladder access)
-- WiFi provisioning portal (remove hardcoded credentials)
+### Immediate
 - Holiday animations (auto-triggered date-based effects)
+
+*(OTA firmware updates and the WiFi provisioning portal, both listed here as upcoming in earlier drafts of this page, have since shipped — see README.md.)*
 
 ### Medium-term (2026-2027)
 - BME280 temperature sensor integration

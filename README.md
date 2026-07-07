@@ -126,6 +126,10 @@ Then open the web UI: `http://esp32c3-v3-8inch.local/` (or the IP from your rout
 - [docs/ANIMATIONS.md](docs/ANIMATIONS.md): animation catalog and triggers
 - [docs/API.md](docs/API.md): web endpoints, settings JSON, client examples
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): when it does not work
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): codebase structure, for contributors
+- [docs/FOCUS_REMINDERS.md](docs/FOCUS_REMINDERS.md): the ADHD-nudge feature in depth
+- [docs/HISTORY.md](docs/HISTORY.md): the full decade-long design story
+- [docs/CHANGELOG.md](docs/CHANGELOG.md): version history
 
 ## Support
 
@@ -139,7 +143,7 @@ This design has history. Three builders across a decade:
 - **Mike van der Sluis** (2020): cost-optimized remix for inexpensive NeoPixel ring clones, simplified firmware
 - **Maestro8484** (2022-2026): ESP32-C3 port. WiFi, NTP, OTA, web UI, per-ring controls, auto-brightness, Focus Reminders, multi-scale parametric frame (85% and 200%).
 
-Thanks to Steve and Mike for the foundation. See [NOTICE](NOTICE) for the attribution chain.
+Thanks to Steve and Mike for the foundation. See [NOTICE](NOTICE) for the attribution chain, or [docs/HISTORY.md](docs/HISTORY.md) for the full decade-long story.
 
 ## License
 
