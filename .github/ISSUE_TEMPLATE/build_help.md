@@ -6,17 +6,19 @@ labels: build-help
 assignees: ''
 ---
 
-**Heads up:** this is a one-person hobby project. Support is best effort. Check [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) first; most common problems are already in there.
+**Heads up:** this is a one-person hobby project. Support is best effort. Check [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) and the "If it does not work" table in the [README](../../README.md) first; most common problems are already in there.
 
-## Where are you stuck
+## Which build step
 
-- [ ] 3D printing the frame
-- [ ] Wiring / soldering
-- [ ] Flashing firmware (PlatformIO / USB)
-- [ ] WiFi setup / captive portal
-- [ ] Web UI / OTA
-- [ ] LEDs light up wrong (mapping, colors, flicker)
-- [ ] Other
+The README has a numbered "Build it, step by step" list. Which step did you stall on, and what did you see instead of the check for that step?
+
+- [ ] Step 1: printing the frame / diffuser
+- [ ] Step 2: wiring
+- [ ] Step 3: flashing (browser flasher or PlatformIO)
+- [ ] Step 4: getting it on WiFi
+- [ ] Step 5: setting the time zone / web UI
+- [ ] Step 6: diffuser fit and final assembly
+- [ ] Something else
 
 ## What you have tried
 

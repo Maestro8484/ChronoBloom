@@ -24,24 +24,42 @@ A 3-ring NeoPixel wall clock on the Seeed XIAO ESP32-C3. Seconds sweep the outer
 
 ## Bill of materials
 
-Prices swing. Shop around.
+Prices swing. Shop around. Only the ring kit and the sensor have links pinned so far; the rest are common parts you likely have or can grab anywhere.
 
 | Part | Qty | Notes | Where |
 |---|---|---|---|
 | Seeed XIAO ESP32-C3 | 1 | The brain. USB-C, WiFi, tiny. | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
-| WS2812B 241-LED ring set | 1 | Sold as a 9-ring kit. You use the 60, 24, and 12 rings plus 1 loose pixel for the center. Rest goes in the parts bin. | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
-| VEML7700 lux sensor module | 1 | Optional but worth it. Auto-brightness and dark-room sleep. | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
+| WS2812B 241-LED ring set | 1 | Sold as a 9-ring kit (WESIRI), about $26. You use the 60, 24, and 12 rings plus 1 loose pixel for the center. Rest goes in the parts bin. | [Amazon](https://www.amazon.com/WESIRI-WS2812B-Individually-Addressable-Controller/dp/B083VWVP3J) |
+| VEML7700 lux sensor module | 1 | Optional but worth it. Auto-brightness and dark-room sleep. Usually sold as a 2-pack. | [Amazon](https://www.amazon.com/dp/B0DRRGVTLH) |
 | Momentary push buttons | 2 | Time up/down, factory reset combo | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
 | 5V power supply, 3A | 1 | 2A works, 3A gives headroom for bright animations | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
 | 300Ω resistor | 1 | Inline on the LED data line | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
+| M3 heat-set inserts + M3x10 bolts | 6 each | Frame assembly | [Amazon](#) <!-- TODO: link --> / [eBay](#) <!-- TODO: link --> |
 
-Plus a 3D printer for the frame, parchment paper for the diffuser, wire, and hot glue or cable ties.
+Plus a 3D printer for the frame and the diffuser, some wire, and hot glue or cable ties.
+
+## Build it, step by step
+
+Six steps from a box of parts to a running clock. Each one has a check. If a check fails, jump to the matching row in [If it does not work](#if-it-does-not-work).
+
+1. **Print the frame and diffuser.** Print the 8" parts (below), with the settings and the 0.6mm diffuser spec in [docs/PRINTING.md](docs/PRINTING.md).
+   *Check:* parts release cleanly from the bed, and the three ring seats hold the 60, 24, and 12 LED rings without forcing.
+2. **Wire it.** Follow [Wiring](#wiring). Ring data goes through the 300Ω resistor, the LEDs run off their own 5V supply, and the sensor takes 3V3.
+   *Check:* before you power the LEDs, nothing shorts 5V to ground.
+3. **Flash the firmware.** Easiest is the browser flasher at [maestro8484.github.io/ChronoBloom/flasher](https://maestro8484.github.io/ChronoBloom/flasher/). Building from source works too, see [Flash it](#flash-it).
+   *Check:* within a few seconds the rings glow blue, or the browser offers to set up WiFi. Blue means the firmware is alive.
+4. **Get it on WiFi.** Use the browser WiFi setup if it appears, or join the `esp32c3-clock-setup` network and pick yours. See [WiFi setup](#wifi-setup).
+   *Check:* `http://esp32c3-v3-8inch.local/` opens the web UI.
+5. **Set your time zone.** In the web UI, Time & light, Time zone. Pick a zone or paste your own.
+   *Check:* the clock shows your correct local time within a few seconds. No reboot needed.
+6. **Fit the diffuser and close it up.** The printed 0.6mm PLA diffuser sits over the rings.
+   *Check:* the light blooms soft and even, with no single LED points poking through.
 
 ## Two builds
 
 ### 8" build (start here)
 
-The recommended path. 85% scale, fits a 256mm print bed (Bambu P1S class). Single NeoPixel chain of 97 LEDs: the three rings, then the center pixel. Parchment paper diffuser. Desktop kickstand or wall hang. Weighs about 500g.
+The recommended path. 85% scale, fits a 256mm print bed (Bambu P1S class). Single NeoPixel chain of 97 LEDs: the three rings, then the center pixel. A thin 0.6mm printed PLA diffuser over the face. Desktop kickstand or wall hang. Weighs about 500g.
 
 Build environment: `esp32c3_v3_8inch`
 
@@ -60,7 +78,7 @@ Build environment: `esp32c3_v3_15inch`
 
 ### 3D print files
 
-STL/3MF files for both builds: [docs/publish/ChronoBloom_3D_Files/](docs/publish/ChronoBloom_3D_Files/). CC BY 4.0, credit Steve Manley (see [NOTICE](NOTICE)).
+STL/3MF files for both builds: [docs/publish/ChronoBloom_3D_Files/](docs/publish/ChronoBloom_3D_Files/). Print settings and the diffuser are in [docs/PRINTING.md](docs/PRINTING.md). CC BY 4.0, credit Steve Manley (see [NOTICE](NOTICE)).
 
 <!-- TODO: ring OD dimensions (outer 60-LED ~175mm, middle 24-LED ~88mm, inner 12-LED ~50mm) are not yet caliper-verified against a printed part. Verify before treating these as exact. -->
 
@@ -123,9 +141,23 @@ After that it auto-connects on boot. If the password changes or the network disa
 
 Then open the web UI: `http://esp32c3-v3-8inch.local/` (or the IP from your router's device list).
 
+## If it does not work
+
+The likeliest snags, keyed to the build steps above.
+
+| What you see | Step | Try this |
+|---|---|---|
+| Parts warp, or a ring will not seat in its seat | 1 | Slow the print, check bed adhesion. A little cleanup of stringing around the seats is normal. |
+| No serial port shows up when flashing | 3 | Use a USB-C cable that carries data, not a charge-only one. Close anything else holding the port (serial monitor, Arduino IDE). |
+| Rings never turn blue after a flash | 3 | Reseat the cable and flash again. Remember the LEDs need their own 5V supply; USB alone powers only the board. |
+| `esp32c3-v3-8inch.local` will not open | 4 | Use the clock's IP from your router's device list. Some networks block mDNS name lookup. |
+| Time is wrong by whole hours | 5 | Set the time zone in step 5. A missing or bad zone falls back to UTC. |
+| Light looks patchy or single dots show through | 6 | That is the diffuser. Check it printed solid at 0.6mm, no gaps. See [docs/PRINTING.md](docs/PRINTING.md). |
+
 ## Docs
 
 - [docs/HARDWARE.md](docs/HARDWARE.md): pins, LED mapping, power, construction
+- [docs/PRINTING.md](docs/PRINTING.md): print settings and the diffuser
 - [docs/FEATURES.md](docs/FEATURES.md): every feature, current and planned
 - [docs/ANIMATIONS.md](docs/ANIMATIONS.md): animation catalog and triggers
 - [docs/API.md](docs/API.md): web endpoints, settings JSON, client examples
@@ -138,6 +170,8 @@ Then open the web UI: `http://esp32c3-v3-8inch.local/` (or the IP from your rout
 ## Support
 
 One person built and maintains this as a hobby project. Support is best effort. Open an issue with the bug report or build help template and I will get to it when I can. No SLA, no promises, but I do read everything.
+
+If ChronoBloom saved you time, you can [buy me a coffee](https://buymeacoffee.com/maestro8484). Never expected, always appreciated.
 
 ## Origin story and credits
 

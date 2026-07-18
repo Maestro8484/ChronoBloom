@@ -2,6 +2,33 @@
 
 > Formerly neopixelClock-esp32c3-v3
 
+## [Docs] - 2026-07-17 (Launch item 6: README becomes a replication document. No firmware change; FIRMWARE_VERSION stays 2.29.0)
+
+### Changed
+- **README** is now a build-it-from-scratch guide, not a feature list. New "Build it, step by step"
+  with six numbered steps, each carrying an observable verify gate, keyed to a new "If it does not
+  work" troubleshooting table. BOM filled from `docs/publish/PROJECT_FACTS.md` §5: real links for the
+  WESIRI 241-LED ring kit (~$26) and the VEML7700; four rows keep marked placeholder links; added the
+  missing M3 heat-set inserts + bolts row. Diffuser set to 0.6mm printed PLA throughout (operator's
+  2026-07-17 decision), replacing parchment/0.3mm language.
+- **`docs/publish/PROJECT_FACTS.md`** §6 diffuser corrected 0.3mm → 0.6mm to match.
+- **build_help issue template** now asks which numbered build step failed.
+
+### Added
+- **`docs/PRINTING.md`**: 8" print settings (monotonic top/bottom fill, full-coverage shells, speed
+  caps) and the 0.6mm diffuser spec; ring outer diameters flagged as caliper-pending.
+- **`.github/FUNDING.yml`**: Buy Me a Coffee sponsor-button scaffold, line commented until the owner
+  supplies a username (a placeholder would render a 404 button). README Support carries a matching
+  commented line. Not on the flasher page (someone mid-flash should not get a donation ask, and
+  GitHub Pages prohibits payment processing anyway).
+- Both new shippable files added to the export manifest; gate PASSES at 49 files.
+
+### Outstanding operator data (item 6 is structurally complete; these are fill-ins)
+- Four BOM purchase links (XIAO, buttons, PSU, resistor), the Buy Me a Coffee username, a wiring
+  photo, and caliper-verified ring dimensions. The Amazon Associates ID `maestro8484-20` exists in
+  PROJECT_FACTS; whether to append affiliate tags (with the required disclosure) is an owner decision,
+  left untouched.
+
 ## [2.29.0] - 2026-07-17 (Improv Wi-Fi: configure Wi-Fi from the browser at flash time)
 
 Pairs with the new browser flasher (`docs/flasher/`): ESP Web Tools can now also hand the freshly
