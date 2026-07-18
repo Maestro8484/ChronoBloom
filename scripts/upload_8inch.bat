@@ -32,7 +32,7 @@ if errorlevel 1 (
     echo OTA UPLOAD FAILED.
     echo   - Is the clock powered on and connected to WiFi?
     echo   - Try browsing to http://%HOSTNAME%/update manually.
-    echo   - USB fallback: pio run -e %ENV_NAME% -t upload --upload-protocol esptool --upload-port COM6
+    echo   - USB fallback: pio run -e %ENV_NAME% -t upload --upload-protocol esptool
     pause
     exit /b 1
 )

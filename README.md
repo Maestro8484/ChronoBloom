@@ -14,11 +14,11 @@ A 3-ring NeoPixel wall clock on the Seeed XIAO ESP32-C3. Seconds sweep the outer
 
 - Time from NTP over WiFi, with timezone and DST rules. No RTC chip.
 - Web UI on your LAN for colors, brightness, animations, and per-ring settings
-- 8 color palettes, per-ring color and intensity controls
+- Per-ring color and intensity controls, theme presets, and warm-to-cool mood palettes for animations
 - Quarter-hour, half-hour, and top-of-hour chime animations (3/3/5 styles)
 - VEML7700 lux sensor drives auto-brightness. Pitch black room, LEDs sleep. Light returns, clock wakes.
 - Focus Reminders: visual nudge animations at intervals you pick, built for interrupting hyperfocus
-- WiFi setup via captive portal on first boot. No hardcoding credentials.
+- WiFi setup in the browser at flash time, or via captive portal on first boot. No hardcoding credentials.
 - OTA firmware updates from a browser after the first USB flash
 - Settings persist in EEPROM, with a user-saved defaults slot
 
@@ -88,7 +88,9 @@ Full pin maps, LED indexing, power math, and assembly notes: [docs/HARDWARE.md](
 
 ## Flash it
 
-Needs [PlatformIO](https://platformio.org/) (VS Code extension or CLI).
+Easiest way: [maestro8484.github.io/ChronoBloom/flasher](https://maestro8484.github.io/ChronoBloom/flasher/). Chrome or Edge on a desktop, plug in the XIAO over USB-C, click the button. No install.
+
+If you would rather build from source, that path stays fully open too. Needs [PlatformIO](https://platformio.org/) (VS Code extension or CLI).
 
 First flash over USB:
 
@@ -108,7 +110,9 @@ Inner ring shows blue during update, green on success, red on failure. Device re
 
 ## WiFi setup
 
-No credentials in code. On first boot the clock opens a captive portal:
+No credentials in code. On first boot the clock listens over the same USB cable for a browser-based WiFi setup (the flasher page above may offer this right after flashing, using the Improv standard). Type your network name and password there and you are done.
+
+If that does not show up, or you skip it, the clock opens its own captive portal instead:
 
 1. Join the WiFi network `esp32c3-clock-setup` from your phone (no password)
 2. A setup page opens (or go to `http://192.168.4.1`)
@@ -135,15 +139,19 @@ Then open the web UI: `http://esp32c3-v3-8inch.local/` (or the IP from your rout
 
 One person built and maintains this as a hobby project. Support is best effort. Open an issue with the bug report or build help template and I will get to it when I can. No SLA, no promises, but I do read everything.
 
-## Lineage and credits
+## Origin story and credits
 
-This design has history. Three builders across a decade:
+**Steve Manley** built the original NeoPixel Ring Clock in 2015 (Arduino Nano, DS3234 RTC, 3D printed frame). The electronics weren't the draw (ESP32s and addressable LEDs were already familiar territory). It was his 3D-printed design: the way the frame shapes and diffuses the LED glow into crisp pointed hands, like a real clock. The printed core piece in this repo is a remix of his design.
 
-- **Steve Manley** (2015): the original NeoPixel Ring Clock. Arduino Nano, DS3234 RTC, 3D printed frame, UV glow-in-dark PLA. The whole concept starts here.
-- **Mike van der Sluis** (2020): cost-optimized remix for inexpensive NeoPixel ring clones, simplified firmware
-- **Maestro8484** (2022-2026): ESP32-C3 port. WiFi, NTP, OTA, web UI, per-ring controls, auto-brightness, Focus Reminders, multi-scale parametric frame (85% and 200%).
+From there, a decade of builds by **Maestro8484**:
 
-Thanks to Steve and Mike for the foundation. See [NOTICE](NOTICE) for the attribution chain, or [docs/HISTORY.md](docs/HISTORY.md) for the full decade-long story.
+- **First edition**: Arduino Nano + RTC + two buttons. Setting time through interrupt-driven buttons was fiddly, but it ran for 2-3 years.
+- **ESP8266 port**: same clock, new brain. Ran fine for years; never needed WiFi features.
+- **8" build**: the replicable 85%-scale version this repo targets. Alongside it, a custom 10" glow-in-dark wall clock built around Steve's core piece with UV LEDs behind the frame.
+- **15" build**: the 8" design scaled ~198% so the outer ring pitch exactly matches side-lit WS2812B strip LED spacing. Much print-and-diffuser trial and error; parchment paper beat every 3D-printed diffuser from 0.8mm down to 0.2mm.
+- **ChronoBloom (2026)**: ground-up rewrite on the XIAO ESP32-C3: web UI, NTP, OTA, lux-sensor auto-brightness, Focus Reminders. The two buttons stay as a hardware fallback.
+
+Thanks to Steve for the design that started all of this. Attribution: [NOTICE](NOTICE). Full story: [docs/HISTORY.md](docs/HISTORY.md).
 
 ## License
 

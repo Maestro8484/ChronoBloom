@@ -317,11 +317,11 @@ type=hour&mode=6
 - `intervalAnimationsEnabled` (int, 0-1: 0=off, 1=on)
 
 **Animation Style** (added v11):
-- `animationPalette` (int, 0-7: 0=Rainbow, 1=Fire, 2=Ocean, 3=Forest, 4=Candy, 5=Neon, 6=Monochrome, 7=Clock)
+- `animationPalette` (int; shared 5-option list, v2.27.0: `0`=Golden hour (warm), `1`=Moonlight (cool), `2`=Dawn (soft-warm), `3`=Twilight (muted-cool), `7`=Clock colors — default. Any other value is coerced to `7`. Moods live in `tools/palettes/palettes.json` `mood_palettes`; `7` is ring-mapped from the face colors in firmware)
 - `animationSpeed` (int, 1-5: 1=slow, 3=normal, 5=fast)
 - `animationBrightness` (int, 50-255)
 - `trailLength` (int, 2-12)
-- `reminderPalette` (int, 0-3: 0=Amber, 1=Red, 2=Magenta, 3=Cyan-warm)
+- `reminderPalette` (int; **same** 5-option list as `animationPalette`: `0-3` moods, `7`=Clock colors. Independent of `animationPalette` so a nudge can read differently from a chime)
 
 **Example**:
 ```
@@ -409,10 +409,10 @@ struct ClockSettings {
 - Hours: Hot pink/magenta (220, 0, 180) @ level 255
 - Center: Warm orange-red (255, 60, 0) @ level 180
 
-**Animations**:
-- Quarter-hour: Ring shimmer (mode 3)
-- Half-hour: Rainbow sweep (mode 1)
-- Top of hour: Rainbow spiral (mode 4)
+**Animations** (factory defaults):
+- Quarter-hour: Bloom Ripple (mode 3)
+- Half-hour: Unfurl (mode 1)
+- Top of hour: Comet Relay (mode 4)
 - Interval animations: Enabled
 
 ---

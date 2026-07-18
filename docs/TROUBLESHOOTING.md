@@ -759,8 +759,7 @@ pio run -e esp32c3_v3_8inch -t upload --upload-protocol esptool --upload-port CO
 ---
 
 ### Check documentation
-- [WORKFLOW.md](../WORKFLOW.md) — Development rules
-- [REVIEW.md](../REVIEW.md) — Known technical issues
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Codebase structure
 - [HARDWARE.md](HARDWARE.md) — Pin mappings and specs
 - [FEATURES.md](FEATURES.md) — Current feature list
 - [API.md](API.md) — Web endpoints and settings structure

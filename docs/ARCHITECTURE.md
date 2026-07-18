@@ -24,10 +24,10 @@ checkAndFire(now) {
 ```
 
 ### Animation Reuse
-Reminders invoke existing `ClockRenderer` methods:
-- `triggerQuarterAnimation(now)` — Sparkle burst or pulse
-- `triggerHalfHourAnimation(now)` — Rainbow sweep or flash
-- `triggerHourAnimation(now)` — Chime, firework, spiral, or mandala
+Reminders can invoke existing `ClockRenderer` methods (or fire a dedicated nudge):
+- `triggerQuarterAnimation(now)` — Slow Comet, Dual Orbit, or Bloom Ripple
+- `triggerHalfHourAnimation(now)` — Unfurl, Three Comets, or Breathe
+- `triggerHourAnimation(now)` — Ceremony, Galaxy Spin, Supernova, Comet Relay, or Deep Breath
 
 No new animations added in v1; all are blocking `delay()`-based. TODO: async animation queue in v2.1.
 
@@ -50,7 +50,7 @@ struct ClockSettings {
 ```
 
 **Validation:** `SettingsStore::valid()` checks all fields are in legal range.
-**Defaults:** Reminder disabled, 08:00-22:00 window, 60-min interval, all days, Quarter Pulse animation.
+**Defaults:** Reminder disabled, 08:00-22:00 window, 60-min interval, all days, animation 0 ("Use quarter animation").
 **Persistence:** Auto-saved to EEPROM on WebUI "Save reminder" button.
 
 ### WebUI Integration

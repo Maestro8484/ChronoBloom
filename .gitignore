@@ -5,6 +5,17 @@ platformio.local.ini
 .vscode/launch.json
 .vscode/ipch/
 *.bin
+# ...except the one binary that has to ship: the browser flasher serves this
+# file over GitHub Pages. It cannot live on a GitHub release instead, because
+# release assets send no Access-Control-Allow-Origin header, so a page on
+# github.io is not allowed to fetch them (verified 2026-07-17). Same-origin or
+# nothing. tools/publish/build_release_bin.ps1 writes it.
+!docs/flasher/firmware/*.bin
 *.elf
 *.code-workspace
 docs/publish/*fpscreenshot*
+
+# Python bytecode (from scripts/*.py)
+__pycache__/
+*.pyc
+.mad/

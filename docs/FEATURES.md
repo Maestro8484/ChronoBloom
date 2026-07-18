@@ -27,20 +27,22 @@
   - Quarter-hour (:15/:45, modes 1-3): Slow comet, Dual orbit, Bloom ripple
   - Half-hour (:30, modes 1-3): Unfurl, Three comets, Breathe
   - Top of hour (:00, modes 1-5): Ceremony, Galaxy spin, Supernova, Comet relay, Deep breath
-- ✅ **Animation palette system** — 8 color palettes (Rainbow, Fire, Ocean, Forest, Candy, Neon, Monochrome, Clock) applied to all new animations
+- ✅ **Animation palette system** (simplified v2.27.0) — **one shared 5-option list** applies to both interval chimes and reminders: `Clock colors (default)` (ring-mapped from the configured face colors) + 4 temperature/mood palettes **Golden hour (warm)**, **Moonlight (cool)**, **Dawn (soft-warm)**, **Twilight (muted-cool)**. Each mood is **four explicit per-ring colors** (outer/middle/inner/center) rendered solid per ring — the same model as Clock colors. Source of truth `tools/palettes/palettes.json` (`mood_palettes` → `rings`) → `tools/gen_palettes.py` → `src/anim_palettes.h`. Values are authored **gamma-aware** (route through `gammaColor`, gamma 2.2). The 10 prior flower palettes were removed and archived (`docs/archive/flower_palettes_2026-07-14.md`)
 - ✅ **Animation style controls** — Speed (1-5), peak brightness (50-255), trail length (2-12 LEDs)
-- ✅ **Reminder palette** — 4 warm/urgent palettes (Amber, Red, Magenta, Cyan-warm) exclusive to focus reminder animations
+- ✅ **Reminder palette** — an **independent selection** from the same 5-option list (Clock colors + 4 moods), so a reminder/nudge can read differently from an interval chime. Applies to every reminder-triggered animation incl. nudge modes 0-2, which delegate to the chime animations
 
 ### Smart Features
-- ✅ **NTP time sync** — Network Time Protocol with timezone/DST support (Mountain time default)
+- ✅ **NTP time sync** — Network Time Protocol with timezone/DST support
+- ✅ **Runtime time zone** (v2.28.0) — set in the web UI (Time & light → Time zone): 18 common zones plus an "Other" field taking any POSIX TZ string. Stored in NVS (`clock`/`tz`), not in `ClockSettings`, so no settings migration; `NTP_TIMEZONE_TZ` in `platformio.ini` is only the default for a fresh or factory-reset unit. Applies immediately with no reboot and no NTP round trip, since the ESP keeps the system clock in UTC and only `tzset()` has to re-run. Rejected strings return 400 rather than silently meaning UTC
 - ✅ **Web UI** — Full-featured control interface with live preview
 - ✅ **Browser time sync** — One-click sync from phone/computer clock
 - ✅ **EEPROM persistence** — All settings survive power cycles (v8)
 - ✅ **WiFi web server** — mDNS hostname (esp32c3-v3-8inch.local)
 - ✅ **Live SVG preview** — Clock updates every 90ms in web UI
 - ✅ **Animation toggles** — Enable/disable individual effects
-- ✅ **Theme selection** — Classic, Aqua, Magenta presets
+- ✅ **Theme selection** — 7 presets: ChronoBloom (clock default), Moonflower, Cherry Blossom, Ember Dahlia, Lotus Pond, Sunflower, Bird of Paradise. Each sets the full face color set plus animation style in one click
 - ✅ **Manual time adjustment** — H:M:S entry and +/- minute controls via WebUI
+- ✅ **Improv WiFi (v2.29.0)** — Browser-configured WiFi over USB serial at flash time (official improv-wifi/sdk-cpp protocol, `improv/Improv @ 1.2.6`). Bounded 10s window on an unprovisioned device before falling back to the captive portal; serviced only while unprovisioned/AP-fallback, never once connected
 - ✅ **WiFi provisioning portal** — Captive portal on first boot; AP fallback at 192.168.4.1 if STA unavailable
 - ✅ **OTA firmware updates** — ArduinoOTA (espota) and web UI `/update` page; no USB cable required after first flash
 - ✅ **mDNS reconnect** — Hostname re-advertised automatically after WiFi reconnect
@@ -56,9 +58,9 @@
 ### Focus Reminders
 - ✅ **Focus Reminders (ADHD support)** — Visual nudge animations at configurable intervals to interrupt hyperfocus
   - Single configurable rule: interval (1-1440 min), active hours window, days-of-week bitmask
-  - Modes 0-5: delegate to existing time-interval animations (quarter/half/hour slots)
-  - Modes 6-10: dedicated reminder animations (Gentle pulse, Orbiting orb, Ripple in, Heartbeat, Slow bloom)
-  - All reminder animations use warm/urgent reminder palette
+  - Modes 0-2: delegate to existing time-interval animations (quarter/half/hour slots)
+  - Modes 6-11: dedicated reminder animations (Gentle pulse, Orbiting orb, Ripple in, Heartbeat, Slow bloom, Firefly)
+  - All reminder animations use the reminder palette, capped by a shared `NUDGE_CEIL` (205/255) so a nudge reads as a swell, never an alert flash
   - Enable/disable toggle
   - Configurable per-day schedule (Sun-Sat)
   - Fire timestamp stored in RAM only — not persisted to EEPROM (field `focusReminder_lastFireMs` reserved in struct but unused since v2.1.1)
@@ -66,8 +68,8 @@
 
 ### Demo Mode
 - ✅ **Demo Mode (Video Recording)** — Non-blocking state machine for feature sequencing during video recording
-  - 8-step sequence: idle clock (8s), quarter chime 3 styles (9s), half-hour chime 3 styles (9s), hour chime 5 styles (15s), 8 color palettes (16s), focus reminder 5 ADHD nudge styles (15s), auto-brightness dim/bright cycles (14s), end card (10s)
-  - Total runtime: 96 seconds
+  - 9-step sequence (`DemoMode::steps[]` in `src/main.cpp`): title card (8.8s), quarter chime (5.6s), half-hour chime (11s), top-of-hour chime (17s), hour animation showcase (36.5s), focus reminder nudges (20s), center LED status (6.8s), auto-brightness cycles (14.85s), open-source end card (10.85s)
+  - Total runtime: ~131 seconds. The animation steps are event-paced and depend on which styles are configured, so per-step figures are estimates at `animationSpeed` 3, not exact bounds; each transition includes a ~0.8s dissolve and breather
   - LuxSensor override: simulates two quick room-darkening/brightening cycles to demo the faster (150ms poll) auto-brightness response
   - `docs/publish/DEMO_CAPTIONS.srt`: timestamped SRT caption track mirroring the sequence for OBS/post-production use
   - Web endpoints: `POST /demo/start`, `POST /demo/stop`, `GET /demo/status`, `GET /demo/overlay`
@@ -125,7 +127,7 @@
 - Originally GPIO3/GPIO4 (JTAG TCK/TDI): spurious ISR fires with USB connected → removed v2.0.4
 - Re-added v2.0.6 on GPIO5(UP)/GPIO9(DOWN) using polled reads, no ISRs
 - v2.0.7: GPIO swap to GPIO5=UP, GPIO9=DOWN; hold-to-repeat added (500ms→1min/150ms, 2s→60min/fire)
-- See CHANGELOG [2.0.4], [2.0.6], [2.0.7] and REVIEW.md Section 1 for full context
+- See CHANGELOG [2.0.4], [2.0.6], [2.0.7] for full context
 
 ---
 
@@ -207,19 +209,20 @@ The clock's purpose is **elegant analog timekeeping through light and color**. T
 
 ---
 
-## Settings Structure (EEPROM v15)
+## Settings Structure (EEPROM v16)
 
 > The struct sketch below is the v11 layout plus later additions; `src/main.cpp`
-> (`struct ClockSettings`, ~line 338) is authoritative. v12+ added:
+> (`struct ClockSettings`) is authoritative. v12+ added:
 > `middleFace*`/`innerFace*`/`innerHour*` colors, `outerRingBrightness`,
-> `middleFaceScale`, `innerFaceScale` (v12-v14), `darkRoomOff` (v15).
+> `middleFaceScale`, `innerFaceScale` (v12-v14), `darkRoomOff` (v15),
+> `secondTrailLength`/`secondTrailStyle`/`progressLevel`/`progressStyle` (v16).
 > A second EEPROM slot at offset 128 stores user-saved defaults (v2.4.5+,
 > magic 0xD2); compile-time static_asserts guard both layout boundaries.
 
 ### Stored Configuration
 **Total size**: 256 bytes (main slot at 0, user-defaults slot at 128)  
 **Magic byte**: 0xC1 (main), 0xD2 (user defaults)  
-**Version**: 15
+**Version**: 16
 
 **Fields**:
 ```cpp
@@ -235,8 +238,8 @@ struct ClockSettings {
   
   // Display
   uint8_t colorTheme;               // 0=Classic, 1=Aqua, 2=Magenta
-  uint8_t secondTrail;              // 0=off, 1=on
-  uint8_t progressSeconds;          // 0=off, 1=on
+  uint8_t secondTrail;              // 0=off, 1=on (tints over the face, v16)
+  uint8_t progressSeconds;          // 0=off, 1=on (tints over the face, v16)
   uint8_t hourlyChime;              // 0=off, 1=on
   uint8_t statusAnimations;         // 0=off, 1=on
   
@@ -273,11 +276,19 @@ struct ClockSettings {
   uint8_t outerRingOffset;          // 0-59: clockwise LED rotation applied to all rings at render time
 
   // Animation customization (added v11)
-  uint8_t animationPalette;         // 0=Rainbow,1=Fire,2=Ocean,3=Forest,4=Candy,5=Neon,6=Mono,7=Clock
+  uint8_t animationPalette;         // Shared 5-option list (v2.27.0): 0=Golden hour(warm),1=Moonlight(cool),2=Dawn(soft-warm),3=Twilight(muted-cool),7=Clock colors (default). Other values → 7.
   uint8_t animationSpeed;           // 1-5 (1=slow, 3=normal, 5=fast)
   uint8_t animationBrightness;      // 50-255 peak brightness during animations
-  uint8_t trailLength;              // 2-12 LEDs (chase/sweep trail length)
-  uint8_t reminderPalette;          // 0=Amber,1=Red,2=Magenta,3=Cyan-warm
+  uint8_t trailLength;              // 2-12 LEDs (chase/sweep trail length — interval anims)
+  uint8_t reminderPalette;          // Same 5-option list as animationPalette (v2.27.0): 0-3 moods, 7=Clock colors
+
+  // ...outerRingBrightness, middleFaceScale, innerFaceScale (v12-14), darkRoomOff (v15)...
+
+  // Second-hand accessory tuning (added v16)
+  uint8_t secondTrailLength;        // 2-12 LEDs (clock-face second trail length)
+  uint8_t secondTrailStyle;         // 0=classic geometric, 1=linear, 2=smooth (gamma comet)
+  uint8_t progressLevel;            // 0-255 tint strength (alpha) of the progress arc over the face
+  uint8_t progressStyle;            // 0=uniform arc, 1=comet gradient (brighter toward the second hand)
 };
 ```
 
@@ -293,21 +304,21 @@ struct ClockSettings {
 - **v13**: v2.4.4/2.4.5 era (user-saved defaults slot added alongside)
 - **v14**: Split inner-ring palettes (`middleFace*`, `innerFace*`, `innerHour*` color/level fields) — v2.4.7
 - **v15**: Added `darkRoomOff` (dark-room display sleep) — v2.5.0
+- **v16**: Added `secondTrailLength`, `secondTrailStyle`, `progressLevel`, `progressStyle` (second-hand accessory tuning; trail/progress now tint over the face) — v2.12.0. **First version bump with a prefix-preserving migration** — deployed units keep all their settings (no wipe).
 
 ### Bumping Settings Version
-When adding/removing/reordering fields:
-1. Update `ClockSettings` struct
+When adding fields (append at the end — never reorder existing ones):
+1. Update `ClockSettings` struct (append new fields)
 2. Update `SettingsStore::defaults()` with new defaults
 3. Increment `SETTINGS_VERSION` by 1
-4. **All clocks will reset to defaults on next boot** (by design, ensures clean state)
+4. Add a migration branch in `SettingsStore::begin()` (see the v15→v16 case): keep the old struct prefix, seed the new fields, re-stamp the version. This preserves every existing setting — **no wipe**. (Omitting the migration falls back to a full reset to `defaults()` on next boot, the pre-v16 behavior.)
 
 ---
 
 ## Stability / OTA Infrastructure (Maturation Track)
 
 Target state: device is flashable, debuggable, and verifiable entirely over WiFi with
-no USB cable or serial monitor required. See REVIEW.md -- Maturation Goal section for
-full task descriptions, priorities, and sequencing.
+no USB cable or serial monitor required.
 
 ### Done
 - ✅ **Task 2** — `WiFi.setAutoReconnect(true)` confirmed in `setupWiFi()`

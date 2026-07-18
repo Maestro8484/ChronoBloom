@@ -1,13 +1,15 @@
 # Animation Catalog
 
-> **⚠️ Current animation set (v2.4.0+, verified against source 2026-07-04; feel pass v2.8.0):**
-> v2.4.0 replaced the 29-mode catalog below with 16 palette-aware animations.
-> The per-mode descriptions in this file from "Quarter-Hour Animations" onward
-> describe the REMOVED legacy set and are kept for historical reference only.
-> v2.8.0 (2026-07-03) did not add/remove/renumber any mode — it reworked several
-> in place for feel; see "v2.8.0 Feel Pass" below the Reminder section for what
-> changed under each name (Galaxy Spin, Comet Relay, Bloom Ripple, Unfurl, and
-> all 4 reminder nudges used in the demo).
+> **✅ Current animation set — verified against source at v2.27.3 (2026-07-17).**
+> v2.4.0 replaced the original 29-mode catalog with 16 palette-aware animations.
+> The per-mode descriptions below now document that live set (they were legacy /
+> historical through v2.9.x and were rewritten to match source in v2.10.2).
+> v2.9.7 made the bloom-family animations theme-faithful (each ring blooms in its
+> own clock color). v2.27.0 collapsed the 10 flower palettes and the 4 separate
+> reminder palettes into ONE shared 5-option list (Clock colors + 4 moods) used
+> by both chimes and nudges; the removed flower palettes are archived in
+> `docs/archive/flower_palettes_2026-07-14.md`. v2.27.2 added the Firefly nudge
+> (mode 11). All reflected below.
 > The live set (`AnimPhase` enum + Web UI labels):
 >
 > | Slot | Modes | Web UI labels |
@@ -132,256 +134,125 @@ Animations exist to **acknowledge the passage of time** and **provide visual fee
 
 ---
 
-## Quarter-Hour Animations (2-3 sec)
+## Quarter-Hour Animations (modes 1-3, ~2.3-2.8s)
 
-### 1. Sparkle Burst
-**Mode**: `quarterAnimation = 1`
+Short, low-intensity acknowledgments fired at :15/:45 (and :30 if no half-hour animation is set).
 
-**Sequence**:
-1. Center pixel flashes bright white (100ms)
-2. Ripple effect to all quarter-hour markers (positions 0, 15, 30, 45 on outer ring)
-3. Quick fade (20ms steps)
+### 1. Slow Comet
+**Mode**: `quarterAnimation = 1` (`animQ1`, ~2.5s)
 
-**Visual effect**: Starburst from center outward to cardinal points
+A single bright pixel travels once clockwise around the outer 60-ring, trailing `trailLength` fading tail LEDs behind it, with an eased brightness attack and release. Color comes from the outer band (`bandColor(0)`): the outer-marker color on **Clock colors**, or that ring's color on a mood palette.
 
-### 2. Quarter Pulse
-**Mode**: `quarterAnimation = 2`
+### 2. Dual Orbit
+**Mode**: `quarterAnimation = 2` (`animQ2`, ~2.8s)
 
-**Sequence**:
-1. All quarter-hour markers (every 5th LED on outer ring) brighten 2x
-2. Hold for 500ms
-3. Dim back to normal
-4. Repeat pulse once more
+Two pixels half a ring apart (30 LEDs) orbit the outer 60-ring together, each with its own fading trail. The lead orbiter uses the outer band color and the second uses the center band color, so the two arms read as distinct rather than as a duplicate.
 
-**Visual effect**: Breathing on hour markers (12, 3, 6, 9 o'clock positions)
+### 3. Bloom Ripple (default)
+**Mode**: `quarterAnimation = 3` (`animQ3`, ~2.3s)
 
-### 3. Ring Shimmer (Default)
-**Mode**: `quarterAnimation = 3`
-
-**Sequence**:
-1. Outer ring brightens to 100% for 400ms, returns to normal (200ms)
-2. Middle ring brightens to 100% for 400ms, returns to normal (200ms)
-3. Inner ring brightens to 100% for 400ms, returns to normal (200ms)
-
-**Visual effect**: Brightness wave cascading inward
-
-### 4. Laser Ping
-**Mode**: `quarterAnimation = 4`
-
-Single bright LED sweeps CW around outer ring in ~600ms with decaying trail. Trail fades on completion. Color: palette position 0. Duration: 1.4s.
-
-### 5. DNA Twist
-**Mode**: `quarterAnimation = 5`
-
-Two LEDs 30 positions apart sweep CW together in opposite palette colors (positions 0 and 128). Each has a trail. Duration: 2s.
-
-### 6. Tick Spark
-**Mode**: `quarterAnimation = 6`
-
-Sequential flashes at clock positions 0, 15, 30, 45 (each 200ms). Colors cycle through palette at positions 0, 85, 170, 255. Duration: 0.8s.
+A bloom ripples outward from the heart: center, then inner-12, then middle-24, then outer-60 light on staggered onsets and fade back. Since v2.9.7 each ring blooms in its own clock color: center→`centerColor`, inner→`innerHourColor`, middle→`hoursColor`, outer→`outerMarkerColor` via `bloomColor()`. On a mood palette each ring uses that palette's color for the ring instead. The default quarter animation and the signature ChronoBloom effect.
 
 ---
 
-## Half-Hour Animations (4-6 sec)
+## Half-Hour Animations (modes 1-3, ~5s)
 
-### 1. Rainbow Sweep (Default)
-**Mode**: `halfHourAnimation = 1`
+Medium-intensity markers fired at :30.
 
-**Sequence**:
-1. Rainbow color wave sweeps clockwise around outer ring (2 sec)
-2. Simultaneously sweep middle and inner rings (2 sec)
-3. Brief hold (1 sec)
+### 1. Unfurl (default)
+**Mode**: `halfHourAnimation = 1` (`animH1`, ~5s)
 
-**Visual effect**: Color wheel rotating through all rings
+Petals unfurl from the heart outward. The center stamen lights first, then the inner-12, middle-24 and outer-60 rings each fill in progressively, LED by LED, on staggered onsets — a flower opening. Ring colors via `bloomColor()`.
 
-### 2. Dual Flash
-**Mode**: `halfHourAnimation = 2`
+### 2. Three Comets
+**Mode**: `halfHourAnimation = 2` (`animH2`, ~5s)
 
-**Sequence**:
-1. Outer ring splits: left half red, right half cyan
-2. Hold 300ms
-3. Colors swap (left cyan, right red)
-4. Hold 300ms
-5. Repeat swap 2 more times (3 total)
+One comet per ring (outer, middle, inner), all travelling the same direction, each with a fading trail in its ring's band color — a coordinated three-ring relay rather than three unrelated chasers.
 
-**Visual effect**: Hemisphere color battle
+### 3. Breathe
+**Mode**: `halfHourAnimation = 3` (`animH3`, ~5s)
 
-### 3. Tidal Pulse
-**Mode**: `halfHourAnimation = 3`
-
-**Sequence**:
-1. All LEDs dim to 25%
-2. Outer ring wave pattern (sine wave brightness)
-3. Middle ring counter-rotating wave
-4. Inner ring breathing
-5. All return to normal brightness together
-
-**Visual effect**: Ocean wave simulation
-
-### 4. Comet Chase
-**Mode**: `halfHourAnimation = 4`
-
-Bright head + decaying trail sweeps CW around outer ring for 2 full laps (~3s). Brief full-ring palette flash at end. Duration: 4s.
-
-### 5. Color Explosion
-**Mode**: `halfHourAnimation = 5`
-
-All 60 outer ring LEDs light simultaneously with per-LED palette colors. Each fades at a pseudo-random speed seeded by position. Duration: 3.5s.
-
-### 6. Knight Rider
-**Mode**: `halfHourAnimation = 6`
-
-Single LED bounces back and forth across outer ring (positions 0-59) with decaying trail. 3 full bounces at ~800ms per pass. Duration: 5s.
-
-### 7. Strobe Party
-**Mode**: `halfHourAnimation = 7`
-
-All rings flash at 8Hz for 2s cycling through 4 palette positions (0, 85, 170, 255). Fades to black over 500ms. Duration: 3s.
+All three rings breathe together on phase-offset sine waves (inner leads, outer lags), gamma-weighted so the troughs settle gently into dark instead of stepping through the low PWM levels. Ring colors via `bandColor()`.
 
 ---
 
-## Top of Hour Animations (8-12 sec)
+## Top-of-Hour Animations (modes 1-5, ~8-9s)
 
-### 1. Hourly Chime (Original)
-**Mode**: `hourAnimation = 1`
+The full hourly spectacle, fired at :00.
 
-**Sequence**:
-1. Sweep animation on outer ring
-2. Middle ring synchronized pulse
-3. Center pixel bright pulse (180ms period, 4 cycles)
+### 1. Ceremony (default)
+**Mode**: `hourAnimation = 1` (`animHr1`, ~9s)
 
-**Visual effect**: Classic chime, maintains compatibility with original firmware
+A stately full-clock reveal: the outer-60 fills clockwise, then the middle-24 fills counter-clockwise, then the inner-12 fills, and finally the center stamen eases in and gently pulses. The grandest of the hour animations. Ring colors via `bloomColor()`.
 
-**Duration**: 6 seconds (legacy timing)
+### 2. Galaxy Spin
+**Mode**: `hourAnimation = 2` (`animHr2`, ~9-10s)
 
-### 2. Firework Burst
-**Mode**: `hourAnimation = 2`
+Two bright spiral arms rotate against dark "space" lanes (`galaxyWave()` with a true-black floor), the hue drifting slowly across the run, with occasional white "star" pixels twinkling in the dark lanes and a twinkling galactic core. Reworked in v2.8.0 to carve dark lanes on every palette.
 
-**Sequence**:
-1. All LEDs go dark (500ms pause)
-2. Center pixel explodes bright white (100ms)
-3. Color radiates outward: inner → middle → outer (400ms per ring)
-4. Each ring "detonates" with random hue sparkles
-5. Random twinkling for 3 seconds
-6. Fade back to clock display
+### 3. Supernova
+**Mode**: `hourAnimation = 3` (`animHr3`, ~8s)
 
-**Visual effect**: New Year's Eve firework
+A bright core ignites, then expanding shells detonate outward (inner→middle→outer), each easing in, before a global fade over the final second. Ring colors via `bloomColor()`; since v2.9.7 the outer shell lights on every palette (it used to go dark on some).
 
-**Duration**: 8-9 seconds
+### 4. Comet Relay
+**Mode**: `hourAnimation = 4` (`animHr4`, ~8s)
 
-### 3. Zenith Cascade
-**Mode**: `hourAnimation = 3`
+A relay of comets hands off outer→middle→inner. Each comet's head sweeps the palette as it travels, with its trail lagging a few hue-steps behind, so it reads as a rainbow spiral rather than a flat comet. A warm stamen dot lights at the finish.
 
-**Sequence**:
-1. Golden/yellow color starts at 12 o'clock position (top)
-2. Flows clockwise AND counter-clockwise simultaneously
-3. Colors meet at 6 o'clock position (bottom) — 1.2 sec
-4. Collision creates white flash at bottom (200ms)
-5. Color drains upward like closing theater curtain (1.2 sec)
-6. Clock display revealed underneath
+### 5. Deep Breath
+**Mode**: `hourAnimation = 5` (`animHr5`, ~9s)
 
-**Visual effect**: Golden waterfall pooling at bottom, draining away
-
-**Duration**: 6-7 seconds
-
-### 4. Rainbow Spiral (Default)
-**Mode**: `hourAnimation = 4`
-
-**Sequence**:
-1. Outer ring rainbow chase clockwise (2 laps, 2 sec)
-2. Middle ring joins counter-clockwise (2 laps, 2 sec)
-3. Inner ring joins clockwise (2 laps, 2 sec)
-4. All three spinning simultaneously for 2 sec
-5. Slow down together, freeze on current time colors
-
-**Visual effect**: Triple-helix rainbow vortex
-
-**Duration**: 10-11 seconds
-
-### 5. Breathing Mandala
-**Mode**: `hourAnimation = 5`
-
-**Sequence**:
-1. All rings pulse brightness 50% → 100% → 50% (1.5 sec per breath)
-2. Each breath shifts hue slightly around color wheel
-3. 6 breaths total (9 sec)
-4. Final breath lands on configured hand colors
-
-**Visual effect**: Meditative breathing flower
-
-**Duration**: 9-10 seconds
-
-### 6. Supernova
-**Mode**: `hourAnimation = 6`
-
-All rings ramp to white blast (500ms), then split into palette colors per ring. Rainbow rotates outward with per-ring hue offsets (+21845) for 5.5s, then fades to black. Duration: 8.5s.
-
-### 7. Matrix Rain
-**Mode**: `hourAnimation = 7`
-
-8 independent green "drops" move CW on outer ring at different speeds, each with decaying trail. Drops loop continuously for 8s. Duration: 8s.
-
-### 8. Galaxy Spin
-**Mode**: `hourAnimation = 8`
-
-Three rings spin palette colors at different speeds and directions: outer CW/3s, middle CCW/5s, inner CW/7s. Each ring has a +85-unit palette offset. Fades out over last second. Duration: 10s.
-
-### 9. Color Wipe
-**Mode**: `hourAnimation = 9`
-
-Palette gradient sweeps CW ring by ring: outer (3s), then middle (1.5s), then inner (1s). Each LED gets a unique palette position. Duration: 7s. Speed-scaled.
-
-### 10. Thunderstorm
-**Mode**: `hourAnimation = 10`
-
-All rings hold deep blue-purple base color with slow sine-wave breathing. 5 lightning strikes at preset intervals flash 2-4 random outer LEDs + center pixel to white for 80ms. Duration: 10.5s.
+The whole flower swells and settles on one long gamma-weighted breath — every ring and the center rise and fall together. Ring colors via `bandColor()`.
 
 ---
 
-## Reminder Animations (warm palette)
+## Reminder Animations (modes 6-11, ~2-4.4s)
 
-Triggered by Focus Reminder scheduler when `focusReminder_animation` is 6-11. All use `reminderPalette` (warm/urgent colors). Not triggered by clock time intervals.
+Triggered by the Focus Reminder scheduler (not by clock time) when `focusReminder_animation` is 6-11. All use the **reminder palette** (`reminderPalette`), selected independently of the chime palette so a nudge can read differently from an interval chime. Since v2.10.3 the reminder palette applies to **every** reminder-triggered animation: nudge modes 0-2, which delegate to the quarter/half-hour/hour chime animations, also render in the reminder palette instead of the chime's animation palette. Every reminder's peak brightness is capped by a shared `NUDGE_CEIL` (205/255, ~80%) so it reads as a swell, never an alert flash (v2.8.0 feel pass).
 
-### ANIM_REM1 — Amber Pulse
-**Mode**: `focusReminder_animation = 6`
+### ANIM_REM1 — Gentle Pulse
+**Mode**: `focusReminder_animation = 6` (`animRem1`, ~3.6s)
 
-Inward wave: outer, middle, inner, center each pulse (200ms ramp, 100ms hold, 200ms ramp down) with 350ms stagger between rings. 3 pulse cycles per ring. Duration: 4s.
+A slow ~1.2s rise / brief crest / ~1.9s fall across all rings — a breath, not a blink — with a subtle warm hue drift over the swell.
 
-### ANIM_REM2 — Attention Ring
-**Mode**: `focusReminder_animation = 7`
+### ANIM_REM2 — Orbiting Orb
+**Mode**: `focusReminder_animation = 7` (`animRem2`, ~3s)
 
-Outer and middle rings dim to 15% face color. Inner ring: single LED sweeps 3 laps (400ms/lap) with 2-LED trail. Duration: 2s.
+The outer ring holds a dim wash while a single orb orbits the inner-12 with a short trail. The quietest, most localized nudge.
 
-### ANIM_REM3 — Heartbeat
-**Mode**: `focusReminder_animation = 8`
+### ANIM_REM3 — Ripple In
+**Mode**: `focusReminder_animation = 8` (`animRem3`, ~2.8s)
 
-All rings flash in double-beat pattern (beat1: 80ms up/80ms hold/120ms down; beat2: 80ms/80ms/200ms), then dim glow pause (520ms). 4 cycles. Duration: 5s.
+Rings swell inward in sequence — outer, middle, inner, center — each with a soft ~600ms rise / ~1.1s fall.
 
-### ANIM_REM4 — Sunrise Wake
-**Mode**: `focusReminder_animation = 9`
+### ANIM_REM4 — Heartbeat
+**Mode**: `focusReminder_animation = 9` (`animRem4`, ~2.1s)
 
-Radial reveal: inner ring glows deep red, expands outward ring by ring. Colors transition red → orange → yellow-white over 6 seconds. Duration: 6s.
+Two eased swells in a two-thump cadence (350ms rise / 550ms fall), the second beat quieter — a heartbeat that breathes rather than strobes (rebuilt from a hard strobe in v2.8.0).
 
-### ANIM_REM5 — Campfire Flicker
-**Mode**: `focusReminder_animation = 10`
+### ANIM_REM5 — Slow Bloom
+**Mode**: `focusReminder_animation = 10` (`animRem5`, ~4s)
 
-All rings flicker warm amber-orange, each LED slightly different shade. Slow sine-wave brightness breathing (2s period, ±20%). Occasional bright spark on random outer LED. Duration: 5s.
+A slow bloom opens outer→middle→inner→center over ~4s, completing petals-inward to the stamen.
 
-### ANIM_REM6 — Neon Sign
-**Mode**: `focusReminder_animation = 11`
+### ANIM_REM6 — Firefly
+**Mode**: `focusReminder_animation = 11` (`animRem6`, ~4s)
 
-Inner ring pulses at 12Hz (on 40ms / off 42ms). Random glitch: full off for ~120ms every ~700ms. Outer ring holds dim amber at 12%. Duration: 4s.
+Fourteen fixed points scattered across the three rings breathe on their own staggered cycles (~1.4s period, roughly 55% of cycles hosting a light), so the swarm drifts rather than pulses in unison. The whole nudge fades in over ~0.7s and out over ~0.9s.
+
+Unlike every other nudge, Firefly repaints the idle face first and drifts the swarm across it, rather than painting onto the cleared buffer `renderAnimFrame()` hands it. Lighting only a handful of pixels on a cleared strip would blank the clock for four seconds, which reads as the display switching off. The face keeps its own `effectiveBrightness` and the swarm is the overlay.
 
 ---
 
-## Animation Style System (v11)
+## Animation Style System
 
-All new animations (ANIM_Q4+) use these shared controls:
+All palette-aware animations use these shared controls:
 
 | Setting | Field | Range | Effect |
 |---------|-------|-------|--------|
-| Color palette | `animationPalette` | 0-7 | Maps to Rainbow/Fire/Ocean/Forest/Candy/Neon/Monochrome/Clock |
-| Reminder palette | `reminderPalette` | 0-3 | Amber/Red/Magenta/Cyan-warm (reminder anims only) |
+| Color palette (chimes) | `animationPalette` | 0-3, 7 | One shared 5-option list since v2.27.0: 7 = Clock colors (default, ring-mapped face colors), 0 = Golden hour (warm), 1 = Moonlight (cool), 2 = Dawn (soft-warm), 3 = Twilight (muted-cool). Each mood is four explicit per-ring colors (outer/middle/inner/center) rendered solid per ring. Any other value sanitizes to 7 (`sanitizePaletteValue`) |
+| Reminder palette (nudges) | `reminderPalette` | 0-3, 7 | The same 5-option list as `animationPalette`, selected independently so a nudge can read differently from a chime. Applies to every reminder-triggered animation, including delegated nudge modes 0-2 |
 | Speed | `animationSpeed` | 1-5 | 0.5× / 0.75× / 1× / 1.5× / 2× time multiplier |
 | Peak brightness | `animationBrightness` | 50-255 | Max LED brightness during animation |
 | Trail length | `trailLength` | 2-12 | LEDs in chase/sweep trail |

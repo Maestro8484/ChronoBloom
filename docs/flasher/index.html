@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flash ChronoBloom</title>
+<meta name="description" content="Flash the ChronoBloom clock firmware to a XIAO ESP32-C3 from your browser. No toolchain, no compiler.">
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0d1117; color:#dbe7f7;
+         font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width:680px; margin:0 auto; padding:40px 20px 80px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.5px;
+       color:#7f8ea3; margin:36px 0 10px; font-weight:600; }
+  .sub { color:#8b9bb0; margin:0 0 32px; }
+  .cta { background:#161b22; border:1px solid #2b3441; border-radius:10px;
+         padding:24px; text-align:center; margin:0 0 8px; }
+  esp-web-install-button { --esp-tools-button-color:#0d1117;
+         --esp-tools-button-text-color:#eaf2ff; }
+  button.fallback { background:#1f6feb; color:#fff; border:0; border-radius:7px;
+         padding:11px 20px; font-size:15px; cursor:pointer; }
+  .note { color:#8b9bb0; font-size:14px; }
+  ol, ul { padding-left:22px; }
+  li { margin:6px 0; }
+  code { background:#161b22; border:1px solid #2b3441; border-radius:4px;
+         padding:1px 5px; font-size:13px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  td { border-top:1px solid #2b3441; padding:9px 6px; vertical-align:top; }
+  td:first-child { color:#8b9bb0; width:38%; }
+  a { color:#6eb9ff; }
+  .unsupported { display:none; background:#3d1d1d; border:1px solid #6b2b2b;
+         border-radius:8px; padding:14px; margin:0 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Flash ChronoBloom</h1>
+  <p class="sub">Puts the clock firmware on a Seeed XIAO ESP32-C3, from this page. No compiler, no toolchain, nothing to install.</p>
+
+  <div class="unsupported" id="unsupported">
+    <strong>This browser cannot flash.</strong> Flashing uses Web Serial, which today only Chrome, Edge and Opera implement, on desktop. Safari and Firefox do not, and neither does any browser on iOS. Open this page in Chrome or Edge on a computer.
+  </div>
+
+  <div class="cta">
+    <esp-web-install-button manifest="manifest.json">
+      <button class="fallback" slot="activate">Connect and flash</button>
+      <span slot="unsupported"></span>
+      <span slot="not-allowed">This page has to be served over HTTPS to flash.</span>
+    </esp-web-install-button>
+    <p class="note" id="ver" style="margin:14px 0 0"></p>
+  </div>
+  <p class="note">Plug the board into a USB-C port first, then press the button and pick the serial port that appears. Flashing takes about a minute.</p>
+
+  <h2>Before you start</h2>
+  <ul>
+    <li>A Seeed XIAO ESP32-C3. This binary is built for that exact board and no other.</li>
+    <li>A USB-C cable that carries data. Charge-only cables are the single most common reason no port shows up.</li>
+    <li>Chrome or Edge, on a desktop.</li>
+  </ul>
+
+  <h2>What happens after it flashes</h2>
+  <ol>
+    <li>Right after flashing, the browser may offer to set up WiFi itself, no phone needed. If that box shows up, type in your network name and password there and skip ahead to the last step.</li>
+    <li>If it does not show up, or you close it, the rings light up <strong>blue</strong> instead. That is the clock saying it has no WiFi yet and has opened a setup network of its own.</li>
+    <li>On your phone, join the WiFi network <code>esp32c3-clock-setup</code>. It has no password.</li>
+    <li>A setup page opens by itself. If it does not, go to <code>http://192.168.4.1</code>.</li>
+    <li>Pick your network and enter its password. The clock saves it and connects.</li>
+    <li>Open <code>http://esp32c3-v3-8inch.local/</code> to reach the clock, then set your time zone under Time &amp; light. It gets the time itself from the internet after that.</li>
+  </ol>
+  <p class="note">If the browser never offered WiFi setup and the rings never turn blue either, the flash did not take. Re-seat the cable and run it again.</p>
+
+  <h2>Updating later</h2>
+  <p>Come back to this page and flash again, or upload the plain <code>firmware.bin</code> from a <a href="https://github.com/Maestro8484/ChronoBloom/releases">release</a> to <code>http://esp32c3-v3-8inch.local/update</code> over your own network. Your settings survive both.</p>
+
+  <h2>If it does not work</h2>
+  <table>
+    <tr><td>No port in the list</td><td>Charge-only USB cable, or the board is not plugged in. Try another cable first.</td></tr>
+    <tr><td>Port is there, flashing fails</td><td>Close anything else holding the port: a serial monitor, Arduino IDE, PlatformIO.</td></tr>
+    <tr><td>Button does nothing</td><td>Not Chrome or Edge, or the page is not on HTTPS.</td></tr>
+    <tr><td>Flashed, but no lights</td><td>The rings need their own 5V supply. USB alone powers the board, not the LEDs.</td></tr>
+    <tr><td>Lights, but wrong positions</td><td>Wiring or LED order. See <a href="https://github.com/Maestro8484/ChronoBloom/blob/main/docs/HARDWARE.md">HARDWARE.md</a>.</td></tr>
+  </table>
+
+  <h2>Building from source instead</h2>
+  <p>You do not need to, but everything is there: <a href="https://github.com/Maestro8484/ChronoBloom">github.com/Maestro8484/ChronoBloom</a>. PlatformIO, <code>pio run -e esp32c3_v3_8inch</code>. That path is for changing the firmware, not for using the clock.</p>
+
+</div>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
+<script>
+  // Show the version straight from the manifest, so this page can never claim a
+  // version the flasher would not actually install.
+  fetch('manifest.json').then(r => r.json()).then(m => {
+    document.getElementById('ver').textContent =
+      'Firmware ' + m.version + ' for ' + (m.builds && m.builds[0] ? m.builds[0].chipFamily : 'ESP32-C3');
+  }).catch(() => {});
+  if (!('serial' in navigator)) document.getElementById('unsupported').style.display = 'block';
+</script>
+</body>
+</html>

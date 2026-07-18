@@ -6,7 +6,9 @@ used under the MIT License.
 Original source: https://www.dropbox.com/sh/1uthw4znj5bmmzl/AACjGNHsKtgZ5gjzJ061gnFaa
 Arduino sketch V4.0, dated 31 December 2015.
 
-Firmware lineage:
-  Steve Manley — Arduino Nano, DS3234 RTC, MSGEQ7, 3-ring NeoPixel concept (2015)
-  Mike van der Sluis — Chinese ring clone adaptation, simplified firmware (2020)
-  Maestro8484 — ESP32-C3 port, WiFi, NTP, OTA, web UI, Focus Reminders (2022-2026)
+Lineage:
+  Steve Manley — 3-ring NeoPixel concept, original Arduino sketch, and the
+    3D-printed light-shaping frame design the printed core remixes (2015)
+  Maestro8484 — Arduino Nano and ESP8266 editions, multi-scale frame remixes
+    (8"/10"/15"), then a ground-up ESP32-C3 rewrite: WiFi, NTP, OTA, web UI,
+    auto-brightness, Focus Reminders (2022-2026)

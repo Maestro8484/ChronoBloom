@@ -17,7 +17,7 @@ A visual interrupt system built into your NeoPixel ring clock. When enabled, the
 - **End hour:** When you want them to stop (e.g., 22 for 10 PM)
 - **Interval:** How often in minutes (e.g., 60 for every hour)
 - **Days:** Check which days of the week to enable (Mon-Fri for work, all days for hobby)
-- **Animation:** Pick the visual style (Quarter Pulse, Rainbow Sweep, Hour Chime)
+- **Animation:** Pick the visual style — a dedicated gentle nudge (Gentle Pulse, Orbiting Orb, Ripple In, Heartbeat, Slow Bloom) or "Use quarter/half-hour/hour animation" to reuse one of your configured clock animations
 
 ### 3. Save
 - Click **"Save reminder"** button
@@ -37,7 +37,7 @@ A visual interrupt system built into your NeoPixel ring clock. When enabled, the
 - End: 17 (5 PM)
 - Interval: 25 (every 25 min, Pomodoro timer)
 - Days: Mon-Fri
-- Animation: Quarter Pulse (gentle)
+- Animation: Gentle Pulse (soft, frequent-friendly)
 
 ### Bedtime Reminder (Daily)
 - Enable: YES
@@ -45,7 +45,7 @@ A visual interrupt system built into your NeoPixel ring clock. When enabled, the
 - End: 22 (10 PM)
 - Interval: 10 (every 10 min for 1 hour)
 - Days: All
-- Animation: Hour Chime (noticeable)
+- Animation: Heartbeat (a noticeable two-thump)
 
 ### Screen Break (Background)
 - Enable: YES
@@ -53,15 +53,19 @@ A visual interrupt system built into your NeoPixel ring clock. When enabled, the
 - End: 23 (11 PM)
 - Interval: 120 (every 2 hours)
 - Days: All
-- Animation: Rainbow Sweep (pretty)
+- Animation: Slow Bloom (pretty, unhurried)
 
 ## Animation Styles
 
 | Name | Feel | Use Case |
 |------|------|----------|
-| **Quarter Pulse** | Gentle, subtle | Frequent reminders (25-60 min) |
-| **Half-Hour Sweep** | Flowing, gradual | Moderate reminders (60-120 min) |
-| **Hour Chime** | Dramatic, attention-grabbing | Important cues (break, bedtime, leave) |
+| **Gentle Pulse** | A slow breath with a warm hue drift | Frequent reminders (25-60 min) |
+| **Orbiting Orb** | Quiet, localized — one orb on the inner ring | Background nudges you don't want to intrude |
+| **Ripple In** | Rings swell inward in sequence | Moderate reminders (60-120 min) |
+| **Heartbeat** | Two soft thumps | Important cues you shouldn't miss |
+| **Slow Bloom** | An unhurried flower opening | Calm, meditative reminders |
+
+All five are capped at ~80% brightness (`NUDGE_CEIL`) so they read as a swell, never an alarm, and use the gentle reminder palette (Golden Hour / Moonflower / Cherry Blossom / Lavender). You can also pick "Use quarter/half-hour/hour animation" to fire one of your configured clock animations as the reminder instead.
 
 ## Known Limitations (v1)
 
@@ -69,7 +73,7 @@ A visual interrupt system built into your NeoPixel ring clock. When enabled, the
 - **No quiet mode:** Reminder fires even during night/sleep (use separate night-brightness schedule as workaround).
 - **Day-of-week auto-detection:** Currently must set to "all days" or manually verify clock day is correct.
 - **No snooze:** Once fired, interval resets. No way to delay next fire.
-- **Animation blocks briefly:** Animation uses `delay()` internally; clock display briefly pauses during fire (< 5 seconds).
+- **Brief visual takeover:** While a reminder plays (~2-4s) the animation owns the display, but it's non-blocking (a `millis()`-based state machine, no `delay()`), so Wi-Fi, the web UI, and time-keeping keep running throughout.
 
 ## Troubleshooting
 

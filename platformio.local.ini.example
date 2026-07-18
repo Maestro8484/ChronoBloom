@@ -6,6 +6,14 @@ wifi_flags_15inch =
   -D WIFI_SSID=\"your-ssid-here\"
   -D WIFI_PASSWORD=\"your-password-here\"
 
+; Optional override: pin the USB port used for a wired flash. PlatformIO
+; auto-detects the board when this is absent, which is usually what you want.
+; Set it only if auto-detect picks the wrong device (e.g. several boards
+; plugged in at once). Windows uses COMx, Linux /dev/ttyACM0, macOS
+; /dev/cu.usbmodemXXXX. Uncomment and edit:
+; [env:esp32c3_v3_8inch]
+; upload_port = COM6
+
 ; Optional override: sacrificial first pixel on the 8" chain (vestigial, see
 ; the [led_chain] note in platformio.ini). Only enable this if your build
 ; physically has an extra dark WS2812B spliced in ahead of the rings.

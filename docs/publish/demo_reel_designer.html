@@ -107,8 +107,8 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:24px 10px 40px;
         <input type="range" id="nightBrightness" min="0" max="255"></div>
       <div class="field"><label>Night start hour</label><input type="number" id="nightStartHour" min="0" max="23"></div>
       <div class="field"><label>Night end hour</label><input type="number" id="nightEndHour" min="0" max="23"></div>
-      <div class="field"><label>Color theme</label>
-        <select id="colorTheme"><option value="0">Classic</option><option value="1">Aqua</option><option value="2">Magenta</option></select></div>
+      <div class="field"><label>Center LED shows</label>
+        <select id="centerSource"><option value="0">Wi-Fi/status + bloom pulse</option><option value="1">Bloom pulse only</option><option value="2">Wi-Fi/status only</option><option value="3">Temperature (sensor pending)</option><option value="4">Off</option></select></div>
       <div class="field"><label>Ring rotation offset <span class="val" id="v-outerRingOffset"></span></label>
         <input type="range" id="outerRingOffset" min="0" max="59"></div>
     </div>
@@ -119,6 +119,17 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:24px 10px 40px;
       <div class="toggle"><span>Status animations</span><input type="checkbox" id="statusAnimations"></div>
       <div class="toggle"><span>Interval animations enabled</span><input type="checkbox" id="intervalAnimationsEnabled"></div>
       <div class="toggle"><span>Dark-room display sleep</span><input type="checkbox" id="darkRoomOff"></div>
+    </div>
+    <div class="desc" style="margin-top:12px">Second-hand accessory tuning (fw 2.12.0) — trail &amp; progress now tint over the ring colors underneath instead of fading to black.</div>
+    <div class="grid">
+      <div class="field"><label>Trail length <span class="val" id="v-secondTrailLength"></span></label>
+        <input type="range" id="secondTrailLength" min="2" max="12"></div>
+      <div class="field"><label>Trail fade</label>
+        <select id="secondTrailStyle"><option value="0">Classic (geometric)</option><option value="1">Linear</option><option value="2">Smooth comet</option></select></div>
+      <div class="field"><label>Progress intensity <span class="val" id="v-progressLevel"></span></label>
+        <input type="range" id="progressLevel" min="0" max="255"></div>
+      <div class="field"><label>Progress style</label>
+        <select id="progressStyle"><option value="0">Uniform arc</option><option value="1">Comet gradient</option></select></div>
     </div>
   </div>
 
@@ -142,6 +153,8 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:24px 10px 40px;
     <div class="grid">
       <div class="field"><label>Color palette</label>
         <select id="animationPalette"></select></div>
+      <div class="field"><label>Clock theme (ring colors)</label>
+        <select id="themePreset"><option value="">Clock's saved theme (default)</option></select></div>
       <div class="field"><label>Speed <span class="val" id="v-animationSpeed"></span></label>
         <input type="range" id="animationSpeed" min="1" max="5"></div>
       <div class="field"><label>Peak brightness <span class="val" id="v-animationBrightness"></span></label>
@@ -239,6 +252,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:24px 10px 40px;
         <button id="btnAbortLive" class="ghost" disabled>■ Abort</button>
       </div>
       <div class="subtlety-readout" id="liveStatus">Not running.</div>
+      <div class="small-note" style="opacity:.75">Live Run driver: <b>timer-paced + keepalive · build 2026-07-11b</b> (no <code>/anim/status</code> polling; a silent audio keepalive stops the browser throttling the reel when this tab is hidden/minimized to record). <b>If you do NOT see this line, your browser loaded a cached old page — close the server window and re-run <code>demo_reel_designer.bat</code>.</b></div>
       <div class="small-note">Uses <code>fetch(..., {mode:'no-cors'})</code> — the clock's firmware doesn't send CORS headers, so the browser can't read its responses, but the POST requests still reach the device and take effect. If nothing happens, confirm the host above is reachable from this machine (same network, plain <code>http://</code> — not https) and that the browser isn't blocking local-network requests.</div>
     </div>
 
@@ -277,59 +291,89 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:24px 10px 40px;
 <footer>ChronoBloom Demo Reel Designer — standalone HTML, no external dependencies, no network calls. Autosaves to browser localStorage.</footer>
 
 <script>
+// Durations are the firmware's internal `dur` constants (main.cpp animX()),
+// i.e. wall-clock seconds at animationSpeed 3 where scaledElapsed()'s factor
+// is 1.0x. At any other speed, wall time = dur / SPEED_FACTOR[speed-1] — see
+// suggestDuration(). ALL rows verified against main.cpp on 2026-07-09; the
+// quarter and hour rows had been stale for a long time (Ceremony was listed
+// at 7.0s but runs 9.0s; Galaxy Spin listed 10.0s but runs 9.0s), which
+// silently skewed every exported SRT and shot list.
 const CATALOG = {
-  quarter:  [ {id:1,name:'Slow Comet',dur:2.5}, {id:2,name:'Dual Orbit',dur:2.5}, {id:3,name:'Bloom Ripple',dur:2.3} ],
+  quarter:  [ {id:1,name:'Slow Comet',dur:2.5}, {id:2,name:'Dual Orbit',dur:2.8}, {id:3,name:'Bloom Ripple',dur:2.3} ],
   halfhour: [ {id:1,name:'Unfurl',dur:5.0}, {id:2,name:'Three Comets',dur:5.0}, {id:3,name:'Breathe',dur:5.0} ],
-  hour:     [ {id:1,name:'Ceremony',dur:7.0}, {id:2,name:'Galaxy Spin',dur:10.0}, {id:3,name:'Supernova',dur:8.5}, {id:4,name:'Comet Relay',dur:8.5}, {id:5,name:'Deep Breath',dur:9.5} ],
-  reminder: [ {id:6,name:'Gentle Pulse',dur:3.5}, {id:7,name:'Orbiting Orb',dur:3.0}, {id:8,name:'Ripple In',dur:2.5}, {id:9,name:'Heartbeat',dur:2.1}, {id:10,name:'Slow Bloom',dur:4.4} ],
+  hour:     [ {id:1,name:'Ceremony',dur:9.0}, {id:2,name:'Galaxy Spin',dur:9.0}, {id:3,name:'Supernova',dur:8.0}, {id:4,name:'Comet Relay',dur:8.0}, {id:5,name:'Deep Breath',dur:9.0} ],
+  reminder: [ {id:6,name:'Gentle Pulse',dur:3.6}, {id:7,name:'Orbiting Orb',dur:3.0}, {id:8,name:'Ripple In',dur:2.8}, {id:9,name:'Heartbeat',dur:2.1}, {id:10,name:'Slow Bloom',dur:4.0}, {id:11,name:'Firefly',dur:4.0} ],
 };
 const TYPE_LABEL = { idle:'Idle Clock', quarter:'Quarter-Hour Chime', halfhour:'Half-Hour Chime', hour:'Top-of-Hour Chime', reminder:'Focus Reminder Nudge', brightness:'Brightness Cycle', endcard:'End Card', custom:'Custom' };
 const FIXED_DUR = { idle:8, brightness:14, endcard:10, custom:5 };
-const FIXED_CAPTION = { idle:'ChronoBloom — ESP32-C3 NeoPixel clock', brightness:'Auto-brightness — VEML7700 sensor demo cycle', endcard:'Open source — github / printables / hackaday.io', custom:'' };
-const PALETTES = ['Rainbow','Fire','Ocean','Forest','Candy','Neon','Monochrome','Clock'];
-const REMINDER_PALETTES = ['Amber','Red','Magenta','Cyan-warm'];
-const PALETTE_HEX = { Rainbow:'#ff8a3d', Fire:'#ff5a00', Ocean:'#00b4ff', Forest:'#2ecc71', Candy:'#ff6ec7', Neon:'#39ff14', Monochrome:'#cfcfcf', Clock:'#ff5000' };
-const REM_PALETTE_HEX = { Amber:'#ffb000', Red:'#ff3b30', Magenta:'#ff2d95', 'Cyan-warm':'#ffd9a8' };
+const FIXED_CAPTION = { idle:'ChronoBloom — ESP32-C3 NeoPixel clock', brightness:'Auto-brightness — VEML7700 sensor demo cycle', endcard:'Built to interrupt ADHD hyperfocus — gently. Free & open source: GitHub, with more platforms coming soon.', custom:'' };
+// Index = firmware palette id — do not reorder. 7 (Clock theme) is the firmware default.
+const PALETTES = ['Dahlia','Cherry blossom','Water lily','Iris','Moonflower','Bird of paradise','Wildflower','Clock theme (default)'];
+const REMINDER_PALETTES = ['Golden hour','Moonflower','Cherry blossom','Lavender'];
+const PALETTE_HEX = { Dahlia:'#ffbe2e', 'Cherry blossom':'#ffd9e6', 'Water lily':'#28bca6', Iris:'#91aaff', Moonflower:'#e8e6ff', 'Bird of paradise':'#ffa01e', Wildflower:'#e06078', 'Clock theme (default)':'#ff5000' };
+const THEMES={"chronobloom":{"name":"ChronoBloom (clock default)","version":3,"outerRingBrightness":77,"outerMarkerColor":"#6eb9ff","outerFillerColor":"#0008c8","secondsColor":"#64ffb4","minutesColor":"#ff6400","middleFaceColor":"#dc00b4","hoursColor":"#dc00b4","innerFaceColor":"#ff3c00","innerHourColor":"#dc00b4","centerColor":"#ff3c00","outerMarkerLevel":225,"outerFillerLevel":145,"secondsLevel":230,"minutesLevel":220,"middleFaceScale":55,"hoursLevel":255,"innerFaceScale":55,"innerHourLevel":255,"centerLevel":180,"animationPalette":7,"animationSpeed":3,"animationBrightness":157,"trailLength":6,"reminderPalette":0},"moonflower":{"name":"Moonflower (night bloom)","version":3,"outerRingBrightness":70,"outerMarkerColor":"#c8d8ff","outerFillerColor":"#14006e","secondsColor":"#c8fff0","minutesColor":"#b478ff","middleFaceColor":"#3c1478","hoursColor":"#f0f0ff","innerFaceColor":"#321e8c","innerHourColor":"#f0f0ff","centerColor":"#ffc864","outerMarkerLevel":210,"outerFillerLevel":120,"secondsLevel":215,"minutesLevel":220,"middleFaceScale":50,"hoursLevel":255,"innerFaceScale":55,"innerHourLevel":255,"centerLevel":170,"animationPalette":7,"animationSpeed":2,"animationBrightness":150,"trailLength":6,"reminderPalette":1},"cherryblossom":{"name":"Cherry Blossom (spring bloom)","version":3,"outerRingBrightness":75,"outerMarkerColor":"#ffb4c8","outerFillerColor":"#64143c","secondsColor":"#64ff8c","minutesColor":"#ffa050","middleFaceColor":"#ff3c78","hoursColor":"#ff3c78","innerFaceColor":"#ff7850","innerHourColor":"#ff3c78","centerColor":"#ffb428","outerMarkerLevel":220,"outerFillerLevel":130,"secondsLevel":220,"minutesLevel":215,"middleFaceScale":50,"hoursLevel":255,"innerFaceScale":55,"innerHourLevel":255,"centerLevel":180,"animationPalette":7,"animationSpeed":3,"animationBrightness":157,"trailLength":6,"reminderPalette":2},"emberdahlia":{"name":"Ember Dahlia (fire bloom)","version":3,"outerRingBrightness":78,"outerMarkerColor":"#ffc83c","outerFillerColor":"#780a00","secondsColor":"#fff0c8","minutesColor":"#ff5000","middleFaceColor":"#ff1e00","hoursColor":"#ff1e00","innerFaceColor":"#961400","innerHourColor":"#ff1e00","centerColor":"#fffaf0","outerMarkerLevel":225,"outerFillerLevel":135,"secondsLevel":225,"minutesLevel":220,"middleFaceScale":55,"hoursLevel":255,"innerFaceScale":60,"innerHourLevel":255,"centerLevel":190,"animationPalette":7,"animationSpeed":3,"animationBrightness":160,"trailLength":5,"reminderPalette":0},"lotuspond":{"name":"Lotus Pond (water lily)","version":3,"outerRingBrightness":76,"outerMarkerColor":"#50e6dc","outerFillerColor":"#003c8c","secondsColor":"#3cff96","minutesColor":"#ffb43c","middleFaceColor":"#ff50b4","hoursColor":"#ff50b4","innerFaceColor":"#147864","innerHourColor":"#ff50b4","centerColor":"#ffc850","outerMarkerLevel":220,"outerFillerLevel":140,"secondsLevel":225,"minutesLevel":215,"middleFaceScale":50,"hoursLevel":255,"innerFaceScale":55,"innerHourLevel":255,"centerLevel":180,"animationPalette":7,"animationSpeed":3,"animationBrightness":157,"trailLength":6,"reminderPalette":2}}; // generated by tools/gen_themes.py — edit tools/themes/themes.json instead
+const REM_PALETTE_HEX = { 'Golden hour':'#ffc46e', Moonflower:'#e6e2fa', 'Cherry blossom':'#ffd2e0', Lavender:'#d8ccf0' };
 
 let uidCounter = 1;
 function uid(){ return uidCounter++; }
 
+const FACTORY_STYLE = { animationPalette:7, animationSpeed:3, animationBrightness:157, trailLength:6, reminderPalette:0, defaultSubtlety:50, theme:'' };
+
 function factoryState(){
+  // `state` is still in its temporal dead zone while factoryState() runs
+  // (see `let state = loadLocal() || factoryState()`), so the style has to be
+  // threaded into mkStep explicitly rather than read from state.style.
+  const style = { ...FACTORY_STYLE };
   return {
-    global: { dayBrightness:44, nightBrightness:5, nightStartHour:22, nightEndHour:7, colorTheme:0,
+    durSchema: 3,
+    global: { dayBrightness:44, nightBrightness:5, nightStartHour:22, nightEndHour:7, centerSource:0,
       secondTrail:0, progressSeconds:0, hourlyChime:1, statusAnimations:1, intervalAnimationsEnabled:1,
-      outerRingOffset:0, darkRoomOff:1, autoBrightnessMode:1, minAutoBrightness:10, maxAutoBrightness:255 },
-    style: { animationPalette:0, animationSpeed:3, animationBrightness:220, trailLength:6, reminderPalette:0, defaultSubtlety:50 },
+      outerRingOffset:0, darkRoomOff:1, autoBrightnessMode:1, minAutoBrightness:10, maxAutoBrightness:255,
+      secondTrailLength:4, secondTrailStyle:2, progressLevel:90, progressStyle:0 },
+    style,
     runLive: { preRollSeconds:5, applyOffsetToExports:1 },
     sequence: [
-      mkStep('idle', [], null),
-      mkStep('quarter', [{catId:3,repeat:2}], null),
-      mkStep('halfhour', [{catId:1,repeat:2}], null),
-      mkStep('hour', [{catId:1,repeat:2}], null, 16, 'Top-of-hour chime — Ceremony ×2, exactly as configured'),
-      mkStep('hour', [{catId:1,repeat:1},{catId:2,repeat:1},{catId:3,repeat:1},{catId:4,repeat:1}], null, 34, 'Hour animation showcase — Ceremony, Galaxy Spin, Supernova, Comet Relay'),
-      mkStep('reminder', [{catId:6,repeat:1},{catId:8,repeat:1},{catId:9,repeat:1},{catId:10,repeat:1}], 65, 12.5, 'Focus reminder nudges — gentle, subtle, never a flash'),
-      mkStep('brightness', [], null),
-      mkStep('endcard', [], null),
+      mkStep('idle', [], null, null, null, style),
+      mkStep('quarter', [{catId:3,repeat:2}], null, null, null, style),
+      mkStep('halfhour', [{catId:1,repeat:2}], null, null, null, style),
+      mkStep('hour', [{catId:1,repeat:2}], null, null, 'Top-of-hour chime — Ceremony ×2, exactly as configured', style),
+      mkStep('hour', [{catId:1,repeat:1},{catId:2,repeat:1},{catId:3,repeat:1},{catId:4,repeat:1}], null, null, 'Hour animation showcase — Ceremony, Galaxy Spin, Supernova, Comet Relay', style),
+      mkStep('reminder', [{catId:6,repeat:1},{catId:11,repeat:1},{catId:10,repeat:1},{catId:9,repeat:1}], 65, null, 'Focus reminder nudges — a subtle, clear cue to shift gears out of hyperfocus. An ask, not an alarm.', style),
+      mkStep('brightness', [], null, null, null, style),
+      mkStep('endcard', [], null, null, null, style),
     ],
   };
 }
 
-function mkStep(type, anims, subtlety, durationOverride, captionOverride){
+function mkStep(type, anims, subtlety, durationOverride, captionOverride, style){
   const step = { id:uid(), type, anims, subtlety, duration:0, caption:'' };
-  step.duration = durationOverride != null ? durationOverride : suggestDuration(step);
+  step.duration = durationOverride != null ? durationOverride : suggestDuration(step, style);
   step.caption = captionOverride != null ? captionOverride : suggestCaption(step);
   return step;
 }
 
-function suggestDuration(step){
-  if (FIXED_DUR[step.type] != null && step.type !== 'reminder') {
-    if (['quarter','halfhour','hour'].includes(step.type) === false) return FIXED_DUR[step.type];
+// Wall-clock seconds this step will actually occupy on the clock. CATALOG
+// durations are nominal (animationSpeed 3); the firmware's scaledElapsed()
+// stretches or compresses them by SPEED_FACTOR, and reminder steps pick their
+// own speed from subtlety. This used to return the raw nominal sum, so every
+// exported SRT / shot list was wrong whenever subtlety > 0 or the global
+// Animation Style speed was anything but 3 — which is what put the captions
+// out of sync with the footage.
+// `style` is optional: callers after state init can omit it.
+function suggestDuration(step, style){
+  const st = style || state.style;
+  if (FIXED_DUR[step.type] != null && !['quarter','halfhour','hour','reminder'].includes(step.type)) {
+    return FIXED_DUR[step.type];
   }
   if (['quarter','halfhour','hour','reminder'].includes(step.type)) {
     const cat = CATALOG[step.type];
     return round1(step.anims.reduce((sum,a) => {
       const entry = cat.find(c => c.id === a.catId);
-      return sum + (entry ? entry.dur * a.repeat : 0);
+      if (!entry) return sum;
+      const each = step.type === 'reminder'
+        ? subtletyEffective(step.subtlety ?? st.defaultSubtlety, entry.dur, st).duration
+        : entry.dur / SPEED_FACTOR[clamp(st.animationSpeed,1,5) - 1];
+      return sum + (each + ANIM_GAP_S) * a.repeat;
     }, 0));
   }
   return FIXED_DUR[step.type] || 5;
@@ -353,12 +397,32 @@ function suggestCaption(step){
 
 function round1(n){ return Math.round(n*10)/10; }
 
-function subtletyEffective(subtlety, baseDuration){
+// Firmware speed→rate table (scaledElapsed() in main.cpp): a LOWER speed
+// value runs an animation SLOWER, i.e. LONGER in wall-clock time. Duration
+// here used to be baseDuration * lerp(1.0, 0.6, f) — claiming higher
+// subtlety (which picks a lower speed below) makes nudges SHORTER, exactly
+// backwards from what the speed value it computes actually does. That
+// mismatch is what let Live Run cut nudges off mid-animation: it slept the
+// nominal duration while the clock was still playing the slowed-down real
+// one. Duration must derive from the same factor the firmware applies.
+const SPEED_FACTOR = [0.5, 0.75, 1, 1.5, 2];  // index = speed-1
+// Deliberate breathing gap between chained animations. Live Run pads each
+// animation out to (duration + this) so the real timeline matches what the
+// SRT/shot-list exports predict; it also stops one animation's last frame
+// butting straight into the next one's first. Counted in suggestDuration().
+// Widened from 0.3 to 0.8 in firmware 2.12.0: the on-device stock demo now
+// cross-dissolves through a ~0.8s fade-out/breather/fade-in between pieces,
+// and Live Run reels breathe to match that gentle pacing.
+const ANIM_GAP_S = 0.8;
+// `style` is optional: callers after state init can omit it. factoryState()
+// must pass it explicitly (state is in its TDZ at that point).
+function subtletyEffective(subtlety, baseDuration, style){
+  const st = style || state.style;
   const f = subtlety / 100;
-  const brightness = Math.round(lerp(state.style.animationBrightness, Math.max(50, state.style.animationBrightness*0.35), f));
-  const speed = clamp(Math.round(lerp(state.style.animationSpeed, Math.max(1, state.style.animationSpeed-2), f)), 1, 5);
-  const trail = clamp(Math.round(lerp(state.style.trailLength, Math.max(2, state.style.trailLength-4), f)), 2, 12);
-  const duration = round1(baseDuration * lerp(1.0, 0.6, f));
+  const brightness = Math.round(lerp(st.animationBrightness, Math.max(50, st.animationBrightness*0.35), f));
+  const speed = clamp(Math.round(lerp(st.animationSpeed, Math.max(1, st.animationSpeed-2), f)), 1, 5);
+  const trail = clamp(Math.round(lerp(st.trailLength, Math.max(2, st.trailLength-4), f)), 2, 12);
+  const duration = round1(baseDuration / SPEED_FACTOR[speed-1]);
   return { brightness, speed, trail, duration, label: subtletyLabel(subtlety) };
 }
 function subtletyLabel(s){
@@ -373,12 +437,49 @@ function clamp(v,lo,hi){ return Math.min(hi, Math.max(lo, v)); }
 
 let state = loadLocal() || factoryState();
 
+// Shared by loadLocal() and the file-import handler. Import used to assign the
+// parsed object straight to `state`, skipping every migration below — so an
+// older reel imported cleanly but exported stale durations, and only healed
+// itself on the next page reload. Both entry points run this now.
+function migrateReel(parsed){
+  if (!parsed.runLive) parsed.runLive = { preRollSeconds:5, applyOffsetToExports:1 };
+  // Migrate pre-theme saves: colorTheme was retired (its EEPROM byte became centerSource).
+  if (parsed.global && parsed.global.centerSource == null) parsed.global.centerSource = 0;
+  if (parsed.global) delete parsed.global.colorTheme;
+  if (parsed.style && parsed.style.theme == null) parsed.style.theme = '';
+  // Migrate reels made before the 2026-07-09 duration fix: their step
+  // durations came from stale CATALOG values and a duration formula that
+  // ignored speed/subtlety, so re-exporting them would reproduce the
+  // caption desync. Recompute animation-step durations from the corrected
+  // math. Fixed-length steps (idle/brightness/endcard) are left alone —
+  // those are deliberate user-set lengths, not derived values.
+  // durSchema 3 (fw 2.12.0): ANIM_GAP_S widened 0.3 -> 0.8 for the gentle
+  // dissolve. Recompute animation-step durations so exported SRT/shot lists
+  // reflect the wider breather. Fixed-length steps are user-set, left alone.
+  if (parsed.durSchema !== 3) {
+    const st = parsed.style || FACTORY_STYLE;
+    for (const s of parsed.sequence || []) {
+      if (['quarter','halfhour','hour','reminder'].includes(s.type) && s.anims && s.anims.length) {
+        s.duration = suggestDuration(s, st);
+      }
+    }
+    parsed.durSchema = 3;
+  }
+  // Seed the fw 2.12.0 second-hand accessory settings on older reels.
+  if (parsed.global && parsed.global.secondTrailLength == null) {
+    parsed.global.secondTrailLength = 4;
+    parsed.global.secondTrailStyle = 2;
+    parsed.global.progressLevel = 90;
+    parsed.global.progressStyle = 0;
+  }
+  return parsed;
+}
+
 function loadLocal(){
   try {
     const raw = localStorage.getItem('chronobloom_demo_reel');
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed.runLive) parsed.runLive = { preRollSeconds:5, applyOffsetToExports:1 };
+    const parsed = migrateReel(JSON.parse(raw));
     uidCounter = Math.max(1, ...parsed.sequence.map(s=>s.id)) + 1;
     return parsed;
   } catch(e){ return null; }
@@ -401,8 +502,17 @@ function fillSelect(sel, options){
 }
 fillSelect(document.getElementById('animationPalette'), PALETTES);
 fillSelect(document.getElementById('reminderPalette'), REMINDER_PALETTES);
+// Theme roster (generated from tools/themes/themes.json — run tools/gen_themes.py after edits).
+(function(){
+  const sel = document.getElementById('themePreset');
+  for (const [key, t] of Object.entries(THEMES)) {
+    const o = document.createElement('option');
+    o.value = key; o.textContent = t.name;
+    sel.appendChild(o);
+  }
+})();
 
-const globalFields = ['dayBrightness','nightBrightness','nightStartHour','nightEndHour','colorTheme','outerRingOffset','autoBrightnessMode','minAutoBrightness','maxAutoBrightness'];
+const globalFields = ['dayBrightness','nightBrightness','nightStartHour','nightEndHour','centerSource','outerRingOffset','autoBrightnessMode','minAutoBrightness','maxAutoBrightness','secondTrailLength','secondTrailStyle','progressLevel','progressStyle'];
 const globalToggles = ['secondTrail','progressSeconds','hourlyChime','statusAnimations','intervalAnimationsEnabled','darkRoomOff'];
 const styleFields = ['animationPalette','animationSpeed','animationBrightness','trailLength','reminderPalette','defaultSubtlety'];
 
@@ -421,6 +531,21 @@ function bindGlobalStyleUI(){
     const el = document.getElementById(f);
     el.value = state.style[f];
     el.addEventListener('input', () => { state.style[f] = Number(el.value); refreshLabels(); renderSteps(); saveLocal(); });
+  }); // themePreset is a string key, bound separately below
+  [document.getElementById('themePreset')].forEach(el => {
+    el.value = state.style.theme || '';
+    el.addEventListener('input', () => {
+      state.style.theme = el.value;
+      const t = THEMES[el.value];
+      if (t) {
+        // Picking a theme also seeds the anim style controls with the theme's
+        // tuned values — still overridable afterwards.
+        for (const f of ['animationPalette','animationSpeed','animationBrightness','trailLength','reminderPalette']) {
+          if (t[f] != null) { state.style[f] = t[f]; document.getElementById(f).value = t[f]; }
+        }
+      }
+      refreshLabels(); renderSteps(); saveLocal();
+    });
   });
   const preRollEl = document.getElementById('preRollSeconds');
   preRollEl.value = state.runLive.preRollSeconds;
@@ -431,7 +556,7 @@ function bindGlobalStyleUI(){
   refreshLabels();
 }
 function refreshLabels(){
-  ['dayBrightness','nightBrightness','outerRingOffset','minAutoBrightness','maxAutoBrightness'].forEach(f=>{
+  ['dayBrightness','nightBrightness','outerRingOffset','minAutoBrightness','maxAutoBrightness','secondTrailLength','progressLevel'].forEach(f=>{
     const lab = document.getElementById('v-'+f); if (lab) lab.textContent = state.global[f];
   });
   const speedLabels = {1:'0.5×',2:'0.75×',3:'1×',4:'1.5×',5:'2×'};
@@ -495,8 +620,12 @@ function renderSteps(){
         const entry = cat.find(c=>c.id===a.catId);
         return `<div class="chip">${escapeHtml(entry?entry.name:'?')} × <input type="number" min="1" max="8" value="${a.repeat}" data-repeat="${idx}:${i}"><button data-rmanim="${idx}:${i}" title="remove">✕</button></div>`;
       }).join('') + `</div>`;
-      const available = cat.filter(c => !step.anims.some(a=>a.catId===c.id));
-      addAnimHtml = available.length ? `<select data-addanim="${idx}"><option value="">+ add animation…</option>${available.map(c=>`<option value="${c.id}">${c.name} (${c.dur}s)</option>`).join('')}</select>` : `<span class="small-note">All ${TYPE_LABEL[step.type]} animations added.</span>`;
+      // Every catalog animation stays selectable, even ones already in this step,
+      // so the same animation can appear more than once — as separate chips, each
+      // with its own repeat count and its own place in the order (e.g. A, B, A).
+      // Chips/repeat/remove all key on the anims-array index, not on catId, so
+      // duplicate catIds coexist without collision.
+      addAnimHtml = `<select data-addanim="${idx}"><option value="">+ add animation…</option>${cat.map(c=>`<option value="${c.id}">${c.name} (${c.dur}s)</option>`).join('')}</select>`;
     }
     let subtletyHtml = '';
     if (step.type === 'reminder') {
@@ -701,6 +830,7 @@ function buildShotList(){
   out.push('ChronoBloom Demo Reel — Shot List');
   out.push(`Total runtime: ${fmtTime(state.sequence.reduce((s,st)=>s+st.duration,0))}`);
   out.push('Style defaults: palette=' + PALETTES[state.style.animationPalette] + ', speed=' + state.style.animationSpeed + '/5, peak brightness=' + state.style.animationBrightness + ', trail=' + state.style.trailLength + ', reminder palette=' + REMINDER_PALETTES[state.style.reminderPalette]);
+  out.push('Clock theme: ' + (THEMES[state.style.theme] ? THEMES[state.style.theme].name : "clock's saved theme (default)"));
   out.push(`Pre-roll delay: ${state.runLive.preRollSeconds}s (hit record, then wait for this before step 1 fires)` + (state.runLive.applyOffsetToExports ? ' — SRT timestamps below already include this offset.' : ' — SRT timestamps below do NOT include this offset (toggle is off).'));
   out.push('');
   state.sequence.forEach((step, i) => {
@@ -722,15 +852,27 @@ function buildShotList(){
 
 function buildSettingsParams(){
   const g = state.global, s = state.style;
-  return new URLSearchParams({
+  const p = new URLSearchParams({
     dayBrightness:g.dayBrightness, nightBrightness:g.nightBrightness, nightStartHour:g.nightStartHour, nightEndHour:g.nightEndHour,
-    colorTheme:g.colorTheme, secondTrail:g.secondTrail, progressSeconds:g.progressSeconds, hourlyChime:g.hourlyChime,
+    centerSource:g.centerSource, secondTrail:g.secondTrail, progressSeconds:g.progressSeconds, hourlyChime:g.hourlyChime,
     statusAnimations:g.statusAnimations, intervalAnimationsEnabled:g.intervalAnimationsEnabled,
     outerRingOffset:g.outerRingOffset, darkRoomOff:g.darkRoomOff,
     autoBrightnessMode:g.autoBrightnessMode, minAutoBrightness:g.minAutoBrightness, maxAutoBrightness:g.maxAutoBrightness,
+    secondTrailLength:g.secondTrailLength, secondTrailStyle:g.secondTrailStyle, progressLevel:g.progressLevel, progressStyle:g.progressStyle,
     animationPalette:s.animationPalette, animationSpeed:s.animationSpeed, animationBrightness:s.animationBrightness,
     trailLength:s.trailLength, reminderPalette:s.reminderPalette,
   });
+  // A selected clock theme pushes its full ring color/level set with the
+  // settings, so the recorded reel matches the chosen look exactly. Default
+  // ('') pushes nothing extra — the clock keeps its saved theme.
+  const t = THEMES[s.theme];
+  if (t) {
+    for (const [k, v] of Object.entries(t)) {
+      if (k === 'name' || k === 'version') continue;
+      p.set(k, v);
+    }
+  }
+  return p;
 }
 
 // Per-instance key (not just type:catId) so the same reminder animation used
@@ -790,18 +932,76 @@ function postNoCors(path, params){
   // save, animation trigger) still happen — that's all we need here.
 }
 
+// Demo-reel Live Run reel-mode control (firmware >= 2.13.0). ONE "begin"
+// latches the clock into reel mode: the live clock face is suppressed and the
+// device generates the gentle cross-dissolves between animations itself, so the
+// whole reel plays as one uninterrupted piece with no clock face flashing
+// between beats. We only ever say "begin / end" — never per-animation fade
+// phases (that was the fragile v2.12.3 model whose timed windows expired in the
+// gaps and let the face flash back in). `ms` is the device's idle crash-guard:
+// if this page stops driving and nothing is animating for that long, the clock
+// returns to its face on its own. No-op on firmware without /reel/begin (older
+// builds fall back to the previous hard-cut behavior, same as before this).
+function beginReel(ms){ return postNoCors('/reel/begin', new URLSearchParams({ ms: Math.round(ms) })); }
+// End reel mode — gently dissolve back to the live face. Used for reel steps
+// that intentionally show the face (brightness / idle / end card) and at Live
+// Run end/abort.
+function endReel(){ return postNoCors('/reel/end', new URLSearchParams()); }
+const REEL_SAFETY_MS = 8000;      // device idle crash-guard window
+const REEL_OPEN_SETTLE_MS = 650;  // let the live face dissolve out before the first animation fires
+
 let liveRunAborted = false;
 let liveRunRunning = false;
+
+// (Removed in v2.13.0: the /anim/status event-pacing poll — waitForAnimIdle()
+// and animStatusAvailable(). It was added ~v2.11 to stop slow animations being
+// cut off, but it regressed reliability far worse than the problem it solved: a
+// single timed-out poll (device busy / WiFi jitter / the browser tab backgrounded
+// to start a screen recording) blocked the run for seconds with nothing playing,
+// the firmware's reel idle-guard expired, and the reel dropped to the live clock
+// face and never recovered. The Live Run is back to robust timer pacing using
+// the speed-corrected catalog durations, which already solve the original
+// cut-off problem without depending on reading device state mid-run.)
+
+// Background-throttle keepalive. Browsers throttle setTimeout in a hidden /
+// minimized / unfocused tab (down to ~1/minute), which stretches the reel's
+// timer pacing so far that the firmware's idle-guard expires and the reel drops
+// to the clock face — the "it fucks off if I switch away to record" failure. A
+// tab that is producing audio is exempt from that throttling, so we run a
+// silent Web-Audio source for the duration of the Live Run. No sound is emitted
+// (gain ~0); it only keeps this tab's timers running at full rate while hidden.
+let __keepAlive = null;
+function startKeepAlive(){
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0008;   // effectively inaudible, but the track is "playing"
+    osc.frequency.value = 30;   // sub-audible tone
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start();
+    __keepAlive = { ctx, osc };
+  } catch (e) { /* no Web Audio — fall back to plain timers (works if tab stays visible) */ }
+}
+function stopKeepAlive(){
+  try { if (__keepAlive){ __keepAlive.osc.stop(); __keepAlive.ctx.close(); __keepAlive = null; } } catch (e) {}
+}
 
 async function runLiveSequence(){
   if (liveRunRunning) return;
   liveRunRunning = true;
   liveRunAborted = false;
+  startKeepAlive();  // keep timers un-throttled even if this tab is hidden while recording
   document.getElementById('btnRunLive').disabled = true;
   document.getElementById('btnAbortLive').disabled = false;
 
+  const host = currentHost();
   setLiveStatus('Pushing Global Clock + Animation Style settings…');
   postNoCors('/settings', buildSettingsParams());
+  await sleep(400);  // let the settings write land before the first trigger
 
   const preroll = state.runLive.preRollSeconds;
   for (let remaining = preroll; remaining > 0; remaining--) {
@@ -812,6 +1012,7 @@ async function runLiveSequence(){
 
   const total = state.sequence.reduce((s,st)=>s+st.duration,0);
   let elapsed = 0;
+  let reelOpen = false;  // true while the clock is latched into reel mode (live face suppressed)
   for (let i = 0; i < state.sequence.length; i++) {
     if (liveRunAborted) { finishLiveRun('Aborted mid-sequence.'); return; }
     const step = state.sequence[i];
@@ -824,18 +1025,57 @@ async function runLiveSequence(){
         for (let rep = 0; rep < a.repeat; rep++) {
           if (liveRunAborted) { finishLiveRun('Aborted mid-sequence.'); return; }
           const params = new URLSearchParams({ type: step.type, mode: a.catId });
+          // Real wall-clock length: reminders take their speed from subtlety,
+          // everything else from the global Animation Style speed. Using the
+          // nominal catalog value here would under-wait whenever speed < 3.
+          let effDur;
           if (step.type === 'reminder') {
             const eff = subtletyEffective(step.subtlety, animDur);
             params.set('speed', eff.speed);
             params.set('brightness', eff.brightness);
             params.set('trail', eff.trail);
+            effDur = eff.duration;
+          } else {
+            effDur = round1(animDur / SPEED_FACTOR[clamp(state.style.animationSpeed,1,5) - 1]);
+          }
+          // Event-pacing guarantees we never cut an animation off; padding to
+          // the predicted slot keeps the real timeline aligned with the SRT.
+          // If an animation overruns its slot, pacing wins and we drift — but
+          // a correct, slightly-late caption beats a decapitated animation.
+          const slotMs = (effDur + ANIM_GAP_S) * 1000;
+          // Latch reel mode on the very first animation (and re-latch whenever
+          // animations resume after a face-based step). From here the device
+          // suppresses the live face and dissolves every animation in/out
+          // itself — we just fire triggers, never per-animation fade phases. On
+          // open, wait out the face's dissolve first so the opening animation
+          // blooms up from black instead of over the still-fading clock face.
+          if (!reelOpen) {
+            beginReel(REEL_SAFETY_MS);
+            reelOpen = true;
+            await sleep(REEL_OPEN_SETTLE_MS);
+            if (liveRunAborted) { finishLiveRun('Aborted mid-sequence.'); return; }
           }
           postNoCors('/previewAnimation', params);
-          await sleep(animDur * 1000);
-          elapsed += animDur;
+          // Timer-based pacing: sleep the (speed-corrected) animation length plus
+          // the inter-animation gap, then fire the next trigger. NO /anim/status
+          // polling — that polling (added ~v2.11) is exactly what regressed the
+          // reel's reliability: a single timed-out poll blocked the run for
+          // seconds with nothing on screen, the firmware's idle guard lapsed, and
+          // the reel fell back to the live clock face and never recovered. The
+          // catalog durations overestimate real runtime, so this never cuts an
+          // animation off; the firmware refreshes its reel guard while animating
+          // and on every trigger, so the latch can't lapse between beats.
+          await sleep(slotMs);
+          elapsed += effDur + ANIM_GAP_S;
         }
       }
+    } else if (step.type === 'brightness') {
+      if (reelOpen) { endReel(); reelOpen = false; }  // brightness cycle is shown ON the clock face
+      postNoCors('/demo/brightnessCycle', new URLSearchParams({ ms: Math.round(step.duration * 1000) }));
+      await sleep(step.duration * 1000);
+      elapsed += step.duration;
     } else {
+      if (reelOpen) { endReel(); reelOpen = false; }  // idle / end-card steps intentionally show the live face
       await sleep(step.duration * 1000);
       elapsed += step.duration;
     }
@@ -844,6 +1084,8 @@ async function runLiveSequence(){
 }
 
 function finishLiveRun(msg){
+  stopKeepAlive();  // release the silent audio keepalive
+  endReel();  // dissolve back to the live clock face — hand the display back
   setLiveStatus(msg);
   document.getElementById('btnRunLive').disabled = false;
   document.getElementById('btnAbortLive').disabled = true;
@@ -888,10 +1130,17 @@ document.getElementById('fileImport').addEventListener('change', (e) => {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed.global || !parsed.style || !parsed.sequence) throw new Error('missing sections');
-      state = parsed;
-      if (!state.runLive) state.runLive = { preRollSeconds:5, applyOffsetToExports:1 };
+      const staleDurations = parsed.durSchema !== 2;
+      state = migrateReel(parsed);
       uidCounter = Math.max(1, ...state.sequence.map(s=>s.id)) + 1;
       bindGlobalStyleUI(); renderSteps(); saveLocal();
+      if (staleDurations) {
+        const total = state.sequence.reduce((s,st)=>s+st.duration,0);
+        alert('Imported an older reel. Step durations were recomputed against the '
+            + 'corrected firmware timings (v2.11.0) — the old values under-counted '
+            + 'slowed-down nudges.\n\nNew total runtime: ' + fmtTime(total)
+            + '\n\nRe-export the SRT and shot list before recording.');
+      }
     } catch(err) { alert('Could not import: ' + err.message); }
   };
   reader.readAsText(file);
