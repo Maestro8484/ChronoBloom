@@ -1,0 +1,13 @@
+# Normalize line endings on text files; git decides text vs binary per file.
+* text=auto
+
+# Explicit binary formats: never EOL-convert, never merge as text.
+*.bin binary
+*.3mf binary
+*.stl binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.zip binary
+*.docx binary
+*.xlsx binary

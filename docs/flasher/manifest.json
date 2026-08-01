@@ -1,12 +1,12 @@
 {
   "name": "ChronoBloom",
-  "version": "2.29.0",
+  "version": "2.31.5",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32-C3",
       "parts": [
-        { "path": "firmware/chronobloom-8inch-v2.29.0-merged.bin", "offset": 0 }
+        { "path": "firmware/chronobloom-8inch-v2.31.5-merged.bin", "offset": 0 }
       ]
     }
   ]

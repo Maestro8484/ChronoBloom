@@ -652,16 +652,88 @@ struct ClockSettings {
   uint8_t secondTrailStyle;     // 0=classic geometric, 1=linear, 2=smooth (gamma comet)
   uint8_t progressLevel;        // 0-255: tint strength (alpha) of the progress arc over the face
   uint8_t progressStyle;        // 0=uniform arc, 1=comet gradient (brighter toward the second hand)
-  // Petal texture (added v17, appended so v16 units migrate without a wipe)
-  uint8_t petalMode;            // 0=solid ring fills, 1=petal-scalloped fills on rings 1&2
-  // Auto-brightness gain (added v18, appended so v17 units migrate without a wipe)
-  uint8_t autoBrightnessGain;   // 0-100%: scales the lux-derived auto-brightness curve DOWN before the
-                                // min/max clamp — dims the whole response and (by pulling the curve under
-                                // maxAutoBrightness) restores lux-directs-brightness across the range.
+  // Petal depth (added v17 as an on/off flag, widened to 0-100 in v19)
+  uint8_t petalDepth;           // 0-100: how deeply the ring fills are shaded between petals.
+                                // 0 = flat fill (the old "off"); 100 = deepest seam. Applies to
+                                // all three rings -- see PETAL_SHADE_* / petalFactor().
+  // RETIRED (v19 / v2.30.0). Held autoBrightnessGain (v18): a 0-100% gain
+  // applied to the lux curve BEFORE the min/max clamp. It could pull the whole
+  // curve under minAutoBrightness (pinning the face there, sensor ignored) and
+  // its UI label read backwards. The auto response now span-maps the curve
+  // directly onto [minAutoBrightness..maxAutoBrightness] -- see
+  // effectiveBrightness() -- and the v18->v19 migration folds the stored gain
+  // into maxAutoBrightness so no unit's daylight peak jumps. Byte kept (zeroed)
+  // to preserve the EEPROM layout.
+  uint8_t reservedGain;
 };
 
+// ===================== Petal depth =====================
+// Shades each ring's fill so it reads as a row of petals instead of one flat
+// glow: a bright crest at the middle of every petal falling to a shaded seam
+// where it meets the next. Every ring uses the SAME profile, so all three
+// convey the texture equally -- before v2.30.0 the outer 60 had none at all and
+// the inner 12 alternated bright/dim every other LED, which reads as dither
+// rather than petals.
+//
+// PETAL_SHADE_* is the shade weight per LED within one petal cell: 0 at the
+// crest, 255 at the deepest point of the seam. `petalDepth` (0-100) scales how
+// much of that shade is actually applied, and PETAL_SHADE_MAX caps the darkest
+// possible seam so full depth reads deep but never black.
+//
+//   outer  60: 12 petals x 5 LEDs, crest ON the 5-minute marker. Markers are
+//              exempt (always drawn at full), so the hour marks stay crisp and
+//              gain contrast against the shaded filler either side of them.
+//   middle 24:  8 petals x 3 LEDs, crest at i%3==1 (the v17 phase, unchanged).
+//   inner  12:  4 petals x 3 LEDs, crest at i%3==0.
+//
+// The two inner rings share the 3-LED cell -- identical profile is what makes
+// them read equally -- and nest 1:2. Their crests coincide at 12/3/6/9 o'clock
+// (middle index 2i+1 is the slot that lines up radially with inner index i),
+// so the whole face carries four strong radial spokes with the finer petals
+// filling in between them.
+constexpr uint8_t PETAL_SHADE_MAX = 170;      // depth 100 -> seam at (255-170)/255 = 33% of crest
+constexpr uint8_t PETAL_DEPTH_DEFAULT = 45;   // matches the ChronoBloom entry in tools/themes/themes.json
+static const uint8_t PETAL_SHADE_5[5] = {0, 140, 255, 255, 140};
+static const uint8_t PETAL_SHADE_3[3] = {255, 0, 255};
+
+// Brightness factor (0-255; 255 = untouched) for an LED sitting `shade` deep in
+// a seam at the given depth. Callers multiply this into the ALREADY
+// gamma-corrected ambient -- a pure brightness op, which the single-gamma color
+// contract allows (same rule the v17 scallop factors followed).
+static inline uint8_t petalFactor(uint8_t shade, uint8_t depth) {
+  if (depth == 0 || shade == 0) return 255;
+  const uint16_t deepestCut = (uint16_t)PETAL_SHADE_MAX * shade / 255u;
+  return (uint8_t)(255u - deepestCut * depth / 100u);
+}
+
+// SETTINGS_VERSION <= 18 stored this byte as a 0/1 on/off flag. Read straight
+// back as a v19 depth, a stored 1 would mean "1% depth" -- visually off -- so a
+// unit that had petal texture ON would silently lose it across the upgrade.
+// Map the flag onto the default depth instead. A value already above 1 is
+// nothing a pre-v19 build could have written, so pass it through untouched.
+static inline uint8_t widenPetalFlag(uint8_t stored) {
+  return stored <= 1 ? (stored ? PETAL_DEPTH_DEFAULT : 0) : stored;
+}
+
+// ===================== Auto-brightness span map =====================
+// v19 / v2.30.0: the lux curve's native output (15..255 -- LuxSensor's
+// BRIGHTNESS_MIN / BRIGHTNESS_RANGE constants) is stretched across exactly
+// [minAutoBrightness .. maxAutoBrightness]. Darkest room lands ON the Darkest
+// slider, full daylight lands ON the Brightest slider, and every lux in
+// between interpolates -- so both sliders always steer and neither can be
+// silently defeated. This replaces the retired v18 gain, which multiplied the
+// curve BEFORE the clamp and could shove the whole response under the floor,
+// pinning the face at minAutoBrightness with the sensor effectively ignored.
+// One definition, shared by the renderer, /diag, and the serial status log,
+// so the three can never drift apart again.
+static inline uint8_t autoSpanMap(uint8_t curve, uint8_t minB, uint8_t maxB) {
+  if (maxB <= minB) return minB;                          // degenerate range: flat
+  const uint8_t t = curve <= 15 ? 0 : (uint8_t)(curve - 15);  // 0..240
+  return (uint8_t)(minB + (uint16_t)(maxB - minB) * t / 240u);
+}
+
 constexpr uint8_t SETTINGS_MAGIC = 0xC1;
-constexpr uint8_t SETTINGS_VERSION = 18;
+constexpr uint8_t SETTINGS_VERSION = 19;
 constexpr uint8_t USER_DEFAULTS_MAGIC = 0xD2;       // marks a user-saved defaults block
 constexpr uint16_t USER_DEFAULTS_EEPROM_OFFSET = 128; // second EEPROM slot; must be > sizeof(ClockSettings)
 constexpr size_t EEPROM_BYTES = 256;
@@ -687,9 +759,9 @@ class SettingsStore {
         save();
       }
     } else if (settings_.magic == SETTINGS_MAGIC && settings_.version == 15) {
-      // v15 -> v16 migration. The v16 struct only appended fields at the end,
-      // so every v15 field still sits at its original offset and reads back
-      // intact; only the 4 new trailing bytes are garbage. Seed them with
+      // v15 -> current. The later structs only appended fields at the end, so
+      // every v15 field still sits at its original offset and reads back
+      // intact; only the new trailing bytes are garbage. Seed them with
       // defaults, stamp the new version, and re-save. This preserves all of a
       // deployed unit's colors/config across the upgrade (no settings wipe),
       // the same intent as the centerSource byte-reuse trick.
@@ -697,26 +769,50 @@ class SettingsStore {
       settings_.secondTrailStyle  = 2;
       settings_.progressLevel     = 90;
       settings_.progressStyle     = 0;
-      settings_.petalMode         = 0;
-      settings_.autoBrightnessGain = 60;
+      settings_.petalDepth        = 0;   // flat fills: a v15 unit never had petal shading, so don't change how it looks
+      settings_.reservedGain      = 0;   // pre-v18 units never had a gain; their peak was already maxAutoBrightness
       settings_.version = SETTINGS_VERSION;
       settings_ = sanitize(settings_);
       save();
     } else if (settings_.magic == SETTINGS_MAGIC && settings_.version == 16) {
-      // v16 -> v17/v18 migration: petalMode (v17) + autoBrightnessGain (v18) appended.
+      // v16 -> current: petal byte (v17) + autoBrightnessGain (v18) appended.
       // Same append-only contract — every v16 field reads back intact, seed the new
       // trailing bytes, stamp, re-save. No settings wipe on deployed units.
-      settings_.petalMode = 0;
-      settings_.autoBrightnessGain = 60;
+      settings_.petalDepth = 0;          // as above: no petal shading before v17, so keep it flat
+      settings_.reservedGain = 0;        // pre-v18 units never had a gain; their peak was already maxAutoBrightness
       settings_.version = SETTINGS_VERSION;
       settings_ = sanitize(settings_);
       save();
     } else if (settings_.magic == SETTINGS_MAGIC && settings_.version == 17) {
-      // v17 -> v18 migration: one appended byte (autoBrightnessGain). Append-only —
-      // every v17 field reads back intact; seed the new trailing byte, stamp, re-save.
-      // Seed 60% so deployed units come up dimmer (the point of the feature); the
-      // operator tunes it live in the web UI afterward.
-      settings_.autoBrightnessGain = 60;
+      // v17 -> current: the trailing byte appended in v18 (a gain, retired in
+      // v19) reads back as garbage -- zero it. A v17 unit's daylight peak was
+      // always its stored maxAutoBrightness, so no fold is needed; the petal
+      // byte is widened as in the v18 branch below.
+      settings_.reservedGain = 0;
+      settings_.petalDepth = widenPetalFlag(settings_.petalDepth);
+      settings_.version = SETTINGS_VERSION;
+      settings_ = sanitize(settings_);
+      save();
+    } else if (settings_.magic == SETTINGS_MAGIC && settings_.version == 18) {
+      // v18 -> v19: no new bytes; two bytes change MEANING.
+      // (a) petal byte: 0/1 flag -> 0-100 depth. Widened, because read straight
+      //     back a stored 1 would mean "1% depth", i.e. silently off.
+      // (b) gain byte retired: the auto curve now span-maps onto [min..max]
+      //     directly. Fold the stored gain into maxAutoBrightness so the unit's
+      //     daylight peak doesn't jump -- the old peak was
+      //     clamp(255*gain/100, min, max), which becomes the new max exactly.
+      //     A stored gain of 0 (face pinned at min) folds to max == min: the
+      //     same flat result, expressed honestly in the two sliders that remain.
+      {
+        const uint8_t gain = settings_.reservedGain > 100 ? 100 : settings_.reservedGain;
+        const uint16_t oldPeak = 255u * gain / 100u;
+        uint8_t m = oldPeak > settings_.maxAutoBrightness
+                        ? settings_.maxAutoBrightness : (uint8_t)oldPeak;
+        if (m < settings_.minAutoBrightness) m = settings_.minAutoBrightness;
+        settings_.maxAutoBrightness = m;
+      }
+      settings_.reservedGain = 0;
+      settings_.petalDepth = widenPetalFlag(settings_.petalDepth);
       settings_.version = SETTINGS_VERSION;
       settings_ = sanitize(settings_);
       save();
@@ -800,18 +896,30 @@ class SettingsStore {
             220, 0,   180, 255,   // hours:       hot pink/magenta (middle 24h hand; restores v<2.4.7 default)
             220, 0,   180,        // middleFace:  hot pink — face glow matches hand (v<2.4.7: face used hoursColor)
             255, 60,  0,          // innerFace:   warm orange — matches v<2.4.7 inner face glow (was centerColor)
-            220, 0,   180, 255,   // innerHour:   hot pink — unified with middle hand for visual continuity
+            110, 185, 255, 255,   // innerHour:   periwinkle (v2.30.1) — the hands were unified magenta
+                                  // since v2.4.8, leaving the middle/inner hour pair with zero hue
+                                  // contrast; operator called it out on-wall. Periwinkle echoes the
+                                  // outer marks, reads azure against the warm inner face, and sits
+                                  // ~105 deg from the magenta middle hand.
             255, 60,  0,   180,   // center:      warm orange-red
-            1,   10,  255,        // autoBrightness: mode=auto, min=10, max=255
+            1,   10,  153,        // autoBrightness: mode=auto, Darkest=10, Brightest=153. 153 =
+                                  // the visible daylight peak of the pre-v19 defaults (max 255 x
+                                  // gain 60%), so a fresh unit looks the same as it did before the
+                                  // gain was retired. Raise Brightest for a punchier daylight face.
             3,   1,   4,   1,     // animations: quarter=Bloom Ripple, half=Unfurl, hour=Comet Relay, intervalAnimationsEnabled
-            0,   8,   22,   60,   0, 0, 60, 60,  // focusReminder: disabled, 08-22h, 60min, no days, quarter anim
+            0,   8,   22,   60,   127, 0, 60, 60, // focusReminder: disabled, 08-22h, 60min, ALL days, quarter anim.
+                                  // daysMask 127 (v2.31.0): the old default of 0 meant enable+save
+                                  // silently never fired until the user found the day checkboxes.
+                                  // enabled stays 0, so nothing fires unasked.
             DEFAULT_OUTER_RING_OFFSET,   // outerRingOffset: build-time default rotation
             7, 3, 157, 6, 0,      // animPalette (7 = clock colors), animSpeed, animBrightness, trailLength, reminderPalette (canonical ChronoBloom theme)
-            77, 55, 55,  // outerRingBrightness, middleFaceScale, innerFaceScale (canonical ChronoBloom theme)
+            77, 39, 39,  // outerRingBrightness, middleFaceScale, innerFaceScale — face scales carry the
+                         // v2.30.1 lift rebalance (39 x 255/D(45) ≈ the canonical 55 crest), same
+                         // D/255 treatment as Ember/Lotus, so hands keep their authored pop
             0,           // darkRoomOff: disabled by default
             4, 2, 90, 0, // secondTrailLength=4, secondTrailStyle=2 (smooth), progressLevel=90, progressStyle=0 (uniform)
-            0,           // petalMode: solid fills by default (v17)
-            60};         // autoBrightnessGain: 60% (v18) — dimmer default; tune 0-100 live in the web UI
+            PETAL_DEPTH_DEFAULT,  // petalDepth (v19, was the v17 0/1 flag) -- matches the ChronoBloom theme
+            0};          // reservedGain: retired v19, kept zeroed for layout
   }
 
   // Layout identity only. Field-level range repair is sanitize()'s job —
@@ -836,7 +944,7 @@ class SettingsStore {
       settings.minAutoBrightness = 10;
       settings.maxAutoBrightness = 255;
     }
-    if (settings.autoBrightnessGain > 100) settings.autoBrightnessGain = 100;
+    settings.reservedGain = 0;  // retired v19; kept zeroed so the block stays byte-stable
     // Mode maxima match the v2.4.0 animation set: quarter 1-3, half 1-3,
     // hour 1-5. Values beyond these were legacy modes whose implementations
     // were removed; the old loose bounds made trigger*Animation() index past
@@ -866,7 +974,7 @@ class SettingsStore {
     if (settings.secondTrailStyle > 2) settings.secondTrailStyle = 2;
     // progressLevel (alpha) accepts the full 0-255 range; no clamp needed.
     if (settings.progressStyle > 1) settings.progressStyle = 0;
-    settings.petalMode = settings.petalMode ? 1 : 0;
+    if (settings.petalDepth > 100) settings.petalDepth = 100;
     if (settings.dayBrightness < 5) settings.dayBrightness = 44;
     if (settings.nightBrightness < 1) settings.nightBrightness = 5;
     return settings;
@@ -1002,7 +1110,8 @@ enum StatusMode : uint8_t {
   STATUS_SETTINGS_SAVED,
   STATUS_OTA_UPDATE,
   STATUS_OTA_SUCCESS,
-  STATUS_OTA_FAILED
+  STATUS_OTA_FAILED,
+  STATUS_TIME_UNSET  // amber: time has no trusted source yet (no NTP, no manual set)
 };
 
 class ClockRenderer {
@@ -1415,12 +1524,9 @@ class ClockRenderer {
           // Dark-room sleep: in pitch black, blank the display entirely.
           if (settings.darkRoomOff && lux_->roomDark(now)) return 0;
           uint8_t auto_val = lux_->autoBrightnessCached(now);
-          // Gain scales the curve DOWN before clamping: dims the whole response and,
-          // by pulling the top of the curve under maxAutoBrightness, un-flattens the
-          // high-lux end so lux keeps directing brightness. Multiplicative → preserves
-          // the response shape (relative intensity between rings/elements).
-          uint16_t geared = (uint16_t)auto_val * settings.autoBrightnessGain / 100u;
-          return constrain((int)geared, (int)settings.minAutoBrightness, (int)settings.maxAutoBrightness);
+          // Span-map (v19): pitch black lands on the Darkest slider, full
+          // daylight on the Brightest slider, everything between interpolated.
+          return autoSpanMap(auto_val, settings.minAutoBrightness, settings.maxAutoBrightness);
         }
         return settings.dayBrightness;
       case 2:
@@ -1433,38 +1539,68 @@ class ClockRenderer {
   void renderFace(const ClockSettings &settings) {
     const uint32_t outerMarker = ringColor(settings.outerMarkerRed, settings.outerMarkerGreen,
                                            settings.outerMarkerBlue, settings.outerMarkerLevel);
-    const uint32_t outerFiller = ringColor(settings.outerFillerRed, settings.outerFillerGreen,
-                                           settings.outerFillerBlue, settings.outerFillerLevel);
     const uint8_t orbScale = (uint8_t)((uint16_t)settings.outerRingBrightness * 255 / 100);
     const uint32_t outerMarkerScaled = scale(outerMarker, orbScale);
-    const uint32_t outerFillerScaled = scale(outerFiller, orbScale);
-    const uint32_t middleAmbient = scale(ringColor(settings.middleFaceRed, settings.middleFaceGreen,
-                                                  settings.middleFaceBlue, 255), settings.middleFaceScale);
-    const uint32_t innerAmbient = scale(ringColor(settings.innerFaceRed, settings.innerFaceGreen,
-                                                 settings.innerFaceBlue, 255), settings.innerFaceScale);
+    // Petal depth on every ring, one shared profile (see PETAL_SHADE_* above),
+    // rendered through petalPixel(): the seam shades the COLOR before gamma (a
+    // post-gamma cut reads at roughly half its size perceptually, which is why
+    // the v17 texture vanished on dim faces), and the ring level is lifted by
+    // 255/D so the crest rises as the seam falls instead of depth only ever
+    // dimming the face. At depth 0 petalPixel() collapses to the plain flat
+    // fill -- one code path, no separate solid-fill branch to keep in sync.
+    //
+    // Only a handful of distinct shade weights exist per ring, so the pixel
+    // values are precomputed per weight and the hot loops just index them.
+    // The outer fill folds level*orb into one multiply (matching the web
+    // preview, which always combined them; +/-1 vs the old chained multiplies).
+    const uint8_t depth = settings.petalDepth;
+    const uint8_t effFill = (uint8_t)((uint16_t)settings.outerFillerLevel * orbScale / 255);
+    uint32_t outerFillPix[5], midPix[3], innPix[3];
+    for (uint8_t j = 0; j < 5; ++j) {
+      outerFillPix[j] = petalPixel(settings.outerFillerRed, settings.outerFillerGreen,
+                                   settings.outerFillerBlue, effFill, PETAL_SHADE_5[j], depth);
+    }
+    for (uint8_t j = 0; j < 3; ++j) {
+      midPix[j] = petalPixel(settings.middleFaceRed, settings.middleFaceGreen,
+                             settings.middleFaceBlue, settings.middleFaceScale,
+                             PETAL_SHADE_3[j], depth);
+      innPix[j] = petalPixel(settings.innerFaceRed, settings.innerFaceGreen,
+                             settings.innerFaceBlue, settings.innerFaceScale,
+                             PETAL_SHADE_3[j], depth);
+    }
     for (uint8_t i = 0; i < RING_OUTER_60.count; ++i) {
-      setRingPixel(RING_OUTER_60, i, (i % 5 == 0) ? outerMarkerScaled : outerFillerScaled);
+      // Markers are the hour marks, not fill: never shaded (and never lifted),
+      // so they stay crisp against the textured filler on either side.
+      setRingPixel(RING_OUTER_60, i,
+                   (i % 5 == 0) ? outerMarkerScaled : outerFillPix[i % 5]);
     }
-    if (settings.petalMode) {
-      // Petal texture (v17): scallop the ring fills like petal whorls instead
-      // of flat fills — middle 24 = 8 petals of 3 LEDs [70%,100%,70%], inner
-      // 12 = 6 petals of 2 LEDs [100%,60%], phase-offset so the whorls
-      // interleave rather than align (real petal layers stagger). Factors
-      // multiply the ALREADY gamma-corrected ambient (allowed: brightness op).
-      for (uint8_t i = 0; i < RING_MIDDLE_24.count; ++i) {
-        setRingPixel(RING_MIDDLE_24, i, scale(middleAmbient, (i % 3 == 1) ? 255 : 178));
-      }
-      for (uint8_t i = 0; i < RING_INNER_12.count; ++i) {
-        setRingPixel(RING_INNER_12, i, scale(innerAmbient, (i % 2 == 0) ? 255 : 153));
-      }
-    } else {
-      for (uint8_t i = 0; i < RING_MIDDLE_24.count; ++i) {
-        setRingPixel(RING_MIDDLE_24, i, middleAmbient);
-      }
-      for (uint8_t i = 0; i < RING_INNER_12.count; ++i) {
-        setRingPixel(RING_INNER_12, i, innerAmbient);
-      }
+    for (uint8_t i = 0; i < RING_MIDDLE_24.count; ++i) {
+      setRingPixel(RING_MIDDLE_24, i, midPix[i % 3]);
     }
+    for (uint8_t i = 0; i < RING_INNER_12.count; ++i) {
+      // +1 puts the crest on i%3==0, which lands on the same radial spokes as
+      // the middle ring's crests (middle 2i+1 lines up with inner i).
+      setRingPixel(RING_INNER_12, i, innPix[(i + 1) % 3]);
+    }
+  }
+
+  // One fill pixel under petal depth. `shade` (0 crest .. 255 deepest seam)
+  // multiplies the RAW color before ledGamma -- the one place in the pipeline
+  // where a brightness cut reads at full perceptual size -- and the ring level
+  // is lifted by 255/D (D = deepest seam factor) so the crest gains what the
+  // seam loses. The level multiply itself stays post-gamma, preserving the
+  // WLED ordering: this does NOT reintroduce the v2.22.0 pre-gamma-level
+  // crush; only the petal modulation, a deliberate shading term, moves
+  // pre-gamma.
+  uint32_t petalPixel(uint8_t r, uint8_t g, uint8_t b, uint8_t level,
+                      uint8_t shade, uint8_t depth) {
+    const uint8_t sf = petalFactor(shade, depth);   // 255 crest .. D seam
+    const uint8_t D  = petalFactor(255, depth);     // deepest seam factor
+    const uint16_t lifted = (uint16_t)level * 255u / D;
+    const uint8_t L = lifted > 255u ? 255u : (uint8_t)lifted;
+    return scale(gammaColor((uint8_t)((uint16_t)r * sf / 255u),
+                            (uint8_t)((uint16_t)g * sf / 255u),
+                            (uint8_t)((uint16_t)b * sf / 255u)), L);
   }
 
   void renderSeconds(const ClockTime &time, const ClockSettings &settings) {
@@ -1576,6 +1712,9 @@ class ClockRenderer {
         break;
       case STATUS_OTA_FAILED:
         color = gammaColor(200, 0, 0);  // Red for OTA failure
+        break;
+      case STATUS_TIME_UNSET:
+        color = gammaColor(160, 110, 0);  // Amber: showing a time nothing has confirmed yet
         break;
       default:
         break;
@@ -2808,6 +2947,17 @@ inline String get() {
   return s;
 }
 
+// True once the user has saved a zone (NVS holds a valid TZ). Distinguishes
+// "deliberately on this zone" from "still on the compile-time default" — the
+// web UI's first-run banner keys off this (v2.31.0).
+inline bool configured() {
+  Preferences p;
+  p.begin("clock", true);
+  String s = p.getString("tz", "");
+  p.end();
+  return valid(s.c_str());
+}
+
 // Apply to the C library only. The ESP holds the system clock in UTC, so a
 // timezone change needs no network round trip and no reboot: re-running tzset()
 // is enough for localtime_r() to render the new zone on the very next read.
@@ -2864,7 +3014,7 @@ class TimeSync {
 #endif
   }
 
-  bool syncNow() {
+  bool syncNow(bool quiet = false) {
 #if ENABLE_NTP
     time_t rawUtc = time(nullptr);
     if (rawUtc < 1700000000) return false;
@@ -2881,9 +3031,17 @@ class TimeSync {
     model_.set(localTime.tm_hour, localTime.tm_min, localTime.tm_sec);
     lastSyncMs_ = millis();
     synced_ = true;
-    Serial.printf("[NTP] Time synced: %02d:%02d:%02d local  (UTC epoch %lu)\n",
-                  localTime.tm_hour, localTime.tm_min, localTime.tm_sec,
-                  (unsigned long)rawUtc);
+    // Any non-quiet success means network truth was accepted (loop resync or
+    // the web UI's explicit "Sync to internet"), so the manual override lifts
+    // here — the single point of truth — not just in the loop caller.
+    if (!quiet) manualOverride_ = false;
+    // quiet = the once-a-minute offline re-derive; only log when the derived
+    // time actually moved the face (a DST flip or drift correction).
+    if (!quiet || lastDeltaSec_ >= 60 || lastDeltaSec_ <= -60) {
+      Serial.printf("[NTP] Time synced: %02d:%02d:%02d local  (UTC epoch %lu)\n",
+                    localTime.tm_hour, localTime.tm_min, localTime.tm_sec,
+                    (unsigned long)rawUtc);
+    }
     return true;
 #else
     return false;
@@ -2891,18 +3049,35 @@ class TimeSync {
   }
 
   void loop() {
-    if (WiFi.status() != WL_CONNECTED) return;
     const uint32_t now = millis();
+    if (WiFi.status() != WL_CONNECTED) {
+      // Offline DST tick (v2.31.0): the UTC epoch keeps counting without WiFi,
+      // but local time used to be re-derived only on NTP events — a DST flip
+      // while the router was down never landed. Re-derive once a minute,
+      // unless the user has set the time by hand: offline, their hands are
+      // the better truth and this must not fight them.
+      if (synced_ && !manualOverride_ && now - lastOfflineDeriveMs_ >= 60000UL) {
+        lastOfflineDeriveMs_ = now;
+        syncNow(true);
+      }
+      return;
+    }
     // Consume SNTP callback flag (set from SNTP task, read here in Arduino task).
     // On single-core ESP32-C3, volatile bool read/write is effectively atomic.
     const bool sntpFired = s_sntpPending_;
     if (sntpFired) s_sntpPending_ = false;
     if (sntpFired || !synced_ || now - lastSyncMs_ > syncIntervalMs_) {
-      syncNow();
+      syncNow();  // non-quiet success clears manualOverride_ inside
     }
   }
 
   bool synced() const { return synced_; }
+
+  // The user set the time by hand (buttons or web). Suppresses the offline
+  // re-derive so it cannot fight a deliberate manual time, and feeds the
+  // "time is trusted" cue in loop().
+  void noteManualSet() { manualOverride_ = true; }
+  bool manuallySet() const { return manualOverride_; }
 
   int32_t lastDeltaSec() const { return lastDeltaSec_; }
 
@@ -2911,7 +3086,9 @@ class TimeSync {
  private:
   TimeModel &model_;
   bool synced_ = false;
+  bool manualOverride_ = false;
   uint32_t lastSyncMs_ = 0;
+  uint32_t lastOfflineDeriveMs_ = 0;
   int32_t lastDeltaSec_ = 0;
   static constexpr uint32_t syncIntervalMs_ = 6UL * 60UL * 60UL * 1000UL;
 };
@@ -2947,17 +3124,23 @@ bool setupWiFi() {
     delay(200);
     { Preferences wprefs; wprefs.begin("wifi", false); wprefs.clear(); wprefs.end(); }
     wm.resetSettings();
-    wm.setConfigPortalTimeout(0);  // stay open until user configures
+    // 15-minute window (v2.31.0; was 0 = forever). A forever-blocking portal
+    // left a factory-reset clock dead until provisioned; on timeout this now
+    // falls through to the AP fallback below, where the clock runs offline and
+    // /wifi stays reachable at 192.168.4.1.
+    wm.setConfigPortalTimeout(900);
     return wm.startConfigPortal("esp32c3-clock-setup", "");
   }
 
   // Priority 1: credentials saved via /wifi web page
+  bool haveSavedCreds = false;
   {
     Preferences wprefs;
     wprefs.begin("wifi", true);
     String savedSsid = wprefs.getString("ssid", "");
     String savedPass = wprefs.getString("pass", "");
     wprefs.end();
+    haveSavedCreds = savedSsid.length() > 0;
     if (savedSsid.length() > 0) {
       Serial.printf("[WiFi] Trying saved SSID: %s\n", savedSsid.c_str());
       WiFi.begin(savedSsid.c_str(), savedPass.c_str());
@@ -2977,7 +3160,18 @@ bool setupWiFi() {
     }
   }
 
-  wm.setConfigPortalTimeout(120);  // 2-minute portal window for normal fallback
+  // Fresh-flash first boot (no credentials from anywhere) gets a 10-minute
+  // portal window — 120 s was shorter than a stranger's join-the-AP fumble,
+  // and on timeout the portal reappeared as a different SSID (the AP fallback)
+  // with no explanation. Units that have connected before keep the quick 2-min
+  // window so a router blip doesn't park the clock in the portal (v2.31.0).
+  // getWiFiIsSaved() covers units provisioned through the captive portal or
+  // Improv, whose credentials live only in the WiFi-stack NVS — without it a
+  // portal-provisioned clock would sit 10 minutes in the portal on every
+  // boot-before-router power blip.
+  const bool neverProvisioned = !haveSavedCreds && !wm.getWiFiIsSaved() &&
+                                strcmp(WIFI_SSID, "clock-ssid") == 0;
+  wm.setConfigPortalTimeout(neverProvisioned ? 600 : 120);
 
   if (strcmp(WIFI_SSID, "clock-ssid") != 0) {
     Serial.printf("[WiFi] Trying build-time SSID: %s\n", WIFI_SSID);
@@ -3008,6 +3202,17 @@ bool setupWiFi() {
 #define IMPROV_PROVISIONING_WINDOW_MS 10000UL
 #endif
 
+// How long to keep listening after the last thing an Improv client actually said. The window
+// above is only long enough to notice that nobody is there; reading the browser's Wi-Fi box,
+// picking a network and typing a password takes far longer than 10 s, so until v2.31.4 the
+// window shut while the user was still typing and their answer arrived at a device that had
+// already moved on to the captive portal, so the browser just sat there and timed out.
+// Observed on hardware 2026-07-30. Idle boards are unaffected: with no client talking,
+// nothing extends the deadline and the portal opens exactly as before.
+#ifndef IMPROV_CLIENT_WINDOW_MS
+#define IMPROV_CLIENT_WINDOW_MS 60000UL
+#endif
+
 // ===================== Improv Wi-Fi (browser-configured WiFi over serial) =====================
 // Protocol parsing/framing come from the OFFICIAL improv-wifi SDK (github.com/improv-wifi/sdk-cpp,
 // PlatformIO package improv/Improv @ 1.2.6 — see platformio.ini). That SDK deliberately ships parser
@@ -3028,6 +3233,11 @@ class ImprovSerialHandler {
 
   void deactivate() { active_ = false; }
   bool active() const { return active_; }
+
+  // millis() of the last command a client got far enough to have parsed, or 0 if none ever did.
+  // The boot window uses this to tell "nobody is out there" apart from "somebody is out there,
+  // reading the dialog". Line noise cannot set it: only a complete, checksum-valid frame does.
+  uint32_t lastClientMs() const { return lastClientMs_; }
 
   // Byte-at-a-time, non-blocking — safe to call every loop() iteration alongside the other
   // ...->loop() members (webUi.loop(), timeSync.loop()); never blocks on Serial I/O.
@@ -3070,6 +3280,10 @@ class ImprovSerialHandler {
 
  private:
   bool handleCommand(improv::ImprovCommand cmd) {
+    // Anything that parses cleanly means a real client is on the wire, including the browser's
+    // opening GET_CURRENT_STATE / GET_DEVICE_INFO handshake, which is what fires while the
+    // user is still looking at the dialog, long before any password is typed.
+    lastClientMs_ = millis();
     switch (cmd.command) {
       case improv::WIFI_SETTINGS: {
         Serial.printf("[Improv] Wi-Fi settings received: SSID=%s\n", cmd.ssid.c_str());
@@ -3148,6 +3362,7 @@ class ImprovSerialHandler {
   improv::State state_ = improv::STATE_AUTHORIZED;
   std::vector<uint8_t> rxBuffer_;
   uint32_t lastByteMs_ = 0;
+  uint32_t lastClientMs_ = 0;
   uint32_t provisioningStartMs_ = 0;
 };
 
@@ -3205,7 +3420,11 @@ class DemoMode {
   explicit DemoMode(ClockRenderer &renderer, LuxSensor &luxSensor, SettingsStore &settings)
       : renderer_(renderer), luxSensor_(luxSensor), settings_(settings) {}
 
-  void start() {
+  // preRollMs: hold the clock fully dark for this long before the reel opens.
+  // It exists for filming -- start the recording, let the camera settle, and the
+  // first frame of the reel is a fade-up from clean black instead of whatever
+  // the face happened to be showing. 0 = open immediately (pre-2.30.0 behaviour).
+  void start(uint32_t preRollMs = 0) {
     active_ = true;
     step_ = 0;
     stepStartMs_ = millis();
@@ -3215,9 +3434,11 @@ class DemoMode {
     // Open the reel with a gentle fade-up from black instead of a hard cut-in.
     breatherStartMs_ = 0;
     breatherFadeOut_ = false;
-    fadeInStartMs_ = millis();
     wasAnimating_ = false;
     renderer_.setMasterFade(0);
+    preRollEndMs_ = preRollMs ? (millis() + preRollMs) : 0;
+    // With a pre-roll the fade-up is armed when the countdown expires, not now.
+    fadeInStartMs_ = preRollMs ? 0 : millis();
   }
 
   void stop() {
@@ -3227,6 +3448,7 @@ class DemoMode {
     // Hand the display back to normal rendering at full brightness.
     breatherStartMs_ = 0;
     fadeInStartMs_ = 0;
+    preRollEndMs_ = 0;
     renderer_.setMasterFade(255);
   }
 
@@ -3240,6 +3462,7 @@ class DemoMode {
   // renders pure black instead, structurally preventing any face flash.
   bool rendersFaceNow() const {
     if (!active_) return false;
+    if (preRollEndMs_ != 0) return false;                // capture pre-roll → pure black
     if (breatherStartMs_ != 0) return breatherFadeOut_;  // fade-out → face; snap → black
     return isFaceStep(step_);
   }
@@ -3286,6 +3509,20 @@ class DemoMode {
       }
     }
     if (!active_) return;
+
+    // Capture pre-roll: hold the display dark and the sequence frozen until the
+    // countdown expires. rendersFaceNow() reports false throughout, so the main
+    // loop draws pure black and the recording opens on a clean frame. Signed
+    // comparison so the millis() rollover case doesn't strand the countdown.
+    if (preRollEndMs_ != 0) {
+      if ((int32_t)(now - preRollEndMs_) < 0) {
+        renderer_.setMasterFade(0);
+        return;
+      }
+      preRollEndMs_ = 0;
+      stepStartMs_ = now;    // step 0's clock starts here, not back at start()
+      fadeInStartMs_ = now;  // and the reel fades up out of the black
+    }
 
     // Arm a breather the instant an animation finishes so that anim->anim and
     // anim->step transitions dissolve through a calm dark beat instead of a
@@ -3427,12 +3664,27 @@ class DemoMode {
     if (!active_) return "{\"active\":false}";
 
     uint32_t now = millis();
+
+    // Still counting down to the reel: report the remaining pre-roll so the web
+    // UI and the /demo/overlay page can show the operator when to expect frame one.
+    if (preRollEndMs_ != 0) {
+      const int32_t remain = (int32_t)(preRollEndMs_ - now);
+      char pbuf[128];
+      snprintf(pbuf, sizeof(pbuf),
+               "{\"active\":true,\"preroll\":true,\"preroll_ms\":%lu,"
+               "\"step\":0,\"steps\":%u,\"subtitle\":\"Pre-roll: clock dark, reel about to open\","
+               "\"elapsed_ms\":0,\"step_duration_ms\":%lu}",
+               (unsigned long)(remain > 0 ? remain : 0), (unsigned)STEP_COUNT,
+               (unsigned long)steps[0].duration_ms);
+      return String(pbuf);
+    }
+
     uint32_t elapsed = now - stepStartMs_;
     uint32_t duration = steps[step_].duration_ms;
 
     char buf[256];
     snprintf(buf, sizeof(buf),
-             "{\"active\":true,\"step\":%u,\"steps\":%u,\"subtitle\":\"%s\","
+             "{\"active\":true,\"preroll\":false,\"step\":%u,\"steps\":%u,\"subtitle\":\"%s\","
              "\"elapsed_ms\":%lu,\"step_duration_ms\":%lu}",
              (unsigned)step_, (unsigned)STEP_COUNT, steps[step_].subtitle,
              (unsigned long)elapsed, (unsigned long)duration);
@@ -3529,6 +3781,7 @@ class DemoMode {
   // Cross-dissolve / breather state (see updateFade / armBreather).
   static constexpr uint32_t FADE_MS = 450;  // dissolve in/out duration
   static constexpr uint32_t HOLD_MS = 400;  // dark breather hold between pieces
+  uint32_t preRollEndMs_ = 0;               // 0 = not pre-rolling; else absolute millis the reel opens
   uint32_t breatherStartMs_ = 0;            // 0 = not breathing
   bool breatherFadeOut_ = false;            // fade the face out first, vs snap to black
   uint32_t fadeInStartMs_ = 0;              // 0 = not fading in
@@ -3571,8 +3824,20 @@ class WebUi {
     // portal below. Skipped entirely whenever credentials are already saved, so a normally
     // configured clock's boot time is unaffected.
     {
+      // "Already has Wi-Fi" has to mean the same thing here as it does in setupWiFi().
+      // Credentials live in one of three places and only the first is ours: the /wifi page's
+      // Preferences namespace, the WiFi stack's own NVS (where the captive portal and Improv
+      // put them), or baked in at build time. Checking only the first called every
+      // portal-provisioned clock unprovisioned, so the blocking window ran on every boot for
+      // the exact people the flasher page sends down that route. getWiFiIsSaved() is the same
+      // probe setupWiFi() uses for neverProvisioned; a throwaway instance is enough to ask it,
+      // and WiFi.mode(WIFI_STA) above has already started the stack so it can answer. This
+      // guard can only ever make the window MORE likely to be skipped, never less, so it
+      // cannot shut anyone out of provisioning.
       bool hasStoredCreds = false;
       { Preferences wprefs; wprefs.begin("wifi", true); hasStoredCreds = wprefs.getString("ssid", "").length() > 0; wprefs.end(); }
+      if (!hasStoredCreds) { WiFiManager wmProbe; hasStoredCreds = wmProbe.getWiFiIsSaved(); }
+      if (!hasStoredCreds && strcmp(WIFI_SSID, "clock-ssid") != 0) hasStoredCreds = true;
       if (!hasStoredCreds) {
         Serial.printf("[Improv] No stored Wi-Fi credentials — listening over serial for %lus before opening the setup portal...\n",
                       (unsigned long)(IMPROV_PROVISIONING_WINDOW_MS / 1000));
@@ -3580,10 +3845,25 @@ class WebUi {
         ledStrip.fill(gammaColor(0, 200, 200));
         ledShowBudgeted(ledStrip, MAX_LED_MILLIAMPS);
         improvSerial.begin();
-        const uint32_t improvStart = millis();
-        while (millis() - improvStart < IMPROV_PROVISIONING_WINDOW_MS && WiFi.status() != WL_CONNECTED) {
+        uint32_t improvDeadline = millis() + IMPROV_PROVISIONING_WINDOW_MS;
+        bool sawClient = false;
+        while ((int32_t)(millis() - improvDeadline) < 0 && WiFi.status() != WL_CONNECTED) {
           improvSerial.loop();
+          // Push the deadline out for as long as a client keeps talking, so the window closes on
+          // silence rather than on the clock. Signed comparison so it only ever moves forward.
+          const uint32_t spoke = improvSerial.lastClientMs();
+          if (spoke != 0) {
+            if (!sawClient) {
+              sawClient = true;
+              Serial.println("[Improv] A browser is talking, holding the window open while it does.");
+            }
+            const uint32_t extended = spoke + IMPROV_CLIENT_WINDOW_MS;
+            if ((int32_t)(extended - improvDeadline) > 0) improvDeadline = extended;
+          }
           delay(10);
+        }
+        if (sawClient && WiFi.status() != WL_CONNECTED) {
+          Serial.println("[Improv] Browser went quiet without finishing, opening the setup portal.");
         }
         if (WiFi.status() == WL_CONNECTED) {
           Serial.println("[Improv] Wi-Fi provisioned via Improv — skipping setup portal.");
@@ -3741,7 +4021,6 @@ class WebUi {
       if (server_.hasArg("autoBrightnessMode")) settings.autoBrightnessMode = clampByte(server_.arg("autoBrightnessMode").toInt(), 0, 2);
       if (server_.hasArg("minAutoBrightness")) settings.minAutoBrightness = clampByte(server_.arg("minAutoBrightness").toInt(), 5, 255);
       if (server_.hasArg("maxAutoBrightness")) settings.maxAutoBrightness = clampByte(server_.arg("maxAutoBrightness").toInt(), 5, 255);
-      if (server_.hasArg("autoBrightnessGain")) settings.autoBrightnessGain = clampByte(server_.arg("autoBrightnessGain").toInt(), 0, 100);
       if (server_.hasArg("quarterAnimation")) settings.quarterAnimation = clampByte(server_.arg("quarterAnimation").toInt(), 0, 3);
       if (server_.hasArg("halfHourAnimation")) settings.halfHourAnimation = clampByte(server_.arg("halfHourAnimation").toInt(), 0, 3);
       if (server_.hasArg("hourAnimation")) settings.hourAnimation = clampByte(server_.arg("hourAnimation").toInt(), 0, 5);
@@ -3767,7 +4046,12 @@ class WebUi {
       if (server_.hasArg("secondTrailStyle"))    settings.secondTrailStyle    = clampByte(server_.arg("secondTrailStyle").toInt(), 0, 2);
       if (server_.hasArg("progressLevel"))       settings.progressLevel       = clampByte(server_.arg("progressLevel").toInt(), 0, 255);
       if (server_.hasArg("progressStyle"))       settings.progressStyle       = clampByte(server_.arg("progressStyle").toInt(), 0, 1);
-      if (server_.hasArg("petalMode"))           settings.petalMode           = server_.arg("petalMode").toInt() ? 1 : 0;
+      if (server_.hasArg("petalDepth"))          settings.petalDepth          = clampByte(server_.arg("petalDepth").toInt(), 0, 100);
+      // Legacy 0/1 alias. Custom themes are snapshotted from GET /settings into
+      // browser localStorage, so themes saved before v2.30.0 still carry
+      // petalMode -- accept it and widen, or applying one would silently flatten
+      // the fills. Only consulted when petalDepth is absent.
+      else if (server_.hasArg("petalMode"))      settings.petalDepth          = server_.arg("petalMode").toInt() ? PETAL_DEPTH_DEFAULT : 0;
       return settings;
   }
 
@@ -3875,8 +4159,7 @@ class WebUi {
       uint8_t br_ramped = lux_ ? lux_->autoBrightnessCached(millis()) : 0;
       const ClockSettings &ds = settings_.getPersisted();
       uint8_t br_effective = (ds.autoBrightnessMode == 1 && lux_)
-          ? (uint8_t)constrain((int)((uint16_t)br_ramped * ds.autoBrightnessGain / 100u),
-                               (int)ds.minAutoBrightness, (int)ds.maxAutoBrightness)
+          ? autoSpanMap(br_ramped, ds.minAutoBrightness, ds.maxAutoBrightness)
           : ds.dayBrightness;
       uint8_t mid_amb_scale = ds.middleFaceScale;
       uint8_t inn_amb_scale = ds.innerFaceScale;
@@ -3898,7 +4181,6 @@ class WebUi {
         ",\"display_sleep\":%s"
         ",\"reel_active\":%s,\"master_fade\":%u"
         ",\"est_milliamps\":%lu,\"limiter_brightness\":%u,\"max_milliamps\":%u"
-        ",\"auto_brightness_gain\":%u"
         ",\"timezone\":\"%s\""
         ",\"settings_save_count\":%u}",
         (unsigned long)uptimeSec, FIRMWARE_VERSION, (unsigned)SETTINGS_VERSION,
@@ -3919,7 +4201,6 @@ class WebUi {
         (lux_ && lux_->displaySleeping()) ? "true" : "false",
         renderer_.reelModeActive() ? "true" : "false", (unsigned)renderer_.masterFade(),
         (unsigned long)g_lastEstMilliamps, (unsigned)g_lastLimiterBrightness, (unsigned)MAX_LED_MILLIAMPS,
-        (unsigned)ds.autoBrightnessGain,
         tzone::get().c_str(),
         (unsigned)settings_.saveCount());
       if (n < 0 || n >= (int)sizeof(buf)) {
@@ -4016,6 +4297,7 @@ class WebUi {
         return;
       }
       model_.set(server_.arg("hour").toInt(), server_.arg("minute").toInt(), server_.arg("second").toInt());
+      timeSync_.noteManualSet();
       renderer_.setStatus(STATUS_TIME_SYNC, 1200);
       sendClose(200, "text/plain", "ok");
     });
@@ -4026,6 +4308,7 @@ class WebUi {
         return;
       }
       model_.set(server_.arg("hour").toInt(), server_.arg("minute").toInt(), server_.arg("second").toInt());
+      timeSync_.noteManualSet();
       renderer_.setStatus(STATUS_TIME_SYNC, 1500);
       sendClose(200, "text/plain", "ok");
     });
@@ -4038,12 +4321,14 @@ class WebUi {
 
     server_.on("/addMinute", HTTP_POST, [&]() {
       model_.addMinutes(1);
+      timeSync_.noteManualSet();
       renderer_.setStatus(STATUS_BUTTON, 700);
       sendClose(200, "text/plain", "ok");
     });
 
     server_.on("/subMinute", HTTP_POST, [&]() {
       model_.addMinutes(-1);
+      timeSync_.noteManualSet();
       renderer_.setStatus(STATUS_BUTTON, 700);
       sendClose(200, "text/plain", "ok");
     });
@@ -4268,7 +4553,7 @@ class WebUi {
     snprintf(ifc, sizeof(ifc), "#%02X%02X%02X", s.innerFaceRed, s.innerFaceGreen, s.innerFaceBlue);
     snprintf(ihc, sizeof(ihc), "#%02X%02X%02X", s.innerHourRed, s.innerHourGreen, s.innerHourBlue);
     snprintf(cc, sizeof(cc), "#%02X%02X%02X", s.centerRed, s.centerGreen, s.centerBlue);
-    char buf[1600];
+    char buf[1700];  // 1600 was ~40 bytes of headroom before tzConfigured was added
     int n = snprintf(buf, sizeof(buf),
       "{\"dayBrightness\":%u,\"nightBrightness\":%u"
       ",\"nightStartHour\":%u,\"nightEndHour\":%u"
@@ -4297,9 +4582,8 @@ class WebUi {
       ",\"middleFaceScale\":%u,\"innerFaceScale\":%u"
       ",\"darkRoomOff\":%u"
       ",\"secondTrailLength\":%u,\"secondTrailStyle\":%u"
-      ",\"progressLevel\":%u,\"progressStyle\":%u,\"petalMode\":%u"
-      ",\"autoBrightnessGain\":%u"
-      ",\"timezone\":\"%s\""
+      ",\"progressLevel\":%u,\"progressStyle\":%u,\"petalDepth\":%u"
+      ",\"timezone\":\"%s\",\"tzConfigured\":%s"
       ",\"hasUserDefaults\":%s}",
       s.dayBrightness, s.nightBrightness,
       s.nightStartHour, s.nightEndHour,
@@ -4328,9 +4612,9 @@ class WebUi {
       s.middleFaceScale, s.innerFaceScale,
       s.darkRoomOff,
       s.secondTrailLength, s.secondTrailStyle,
-      s.progressLevel, s.progressStyle, s.petalMode,
-      s.autoBrightnessGain,
+      s.progressLevel, s.progressStyle, s.petalDepth,
       tzone::get().c_str(),
+      tzone::configured() ? "true" : "false",
       settings_.hasUserDefaults() ? "true" : "false");
     if (n < 0 || n >= (int)sizeof(buf)) {
       // Truncated JSON breaks the whole web UI (loadSettings JSON.parse fails).
@@ -4434,7 +4718,17 @@ class FocusReminderScheduler {
 
   void checkAndFire(uint32_t now) {
     const ClockSettings &s = settings_.get();
-    if (!s.focusReminder_enabled) return;
+    if (!s.focusReminder_enabled) {
+      // Disabling reminders clears all RAM scheduling state, so nothing can
+      // strand across a disable/re-enable (a stranded repeatPending_ used to
+      // be able to fire a swell at any hour weeks later) and a stale ack
+      // window can't eat time-adjust presses after a millis() wrap.
+      repeatPending_ = false;
+      firesSinceAck_ = 0;
+      lastFireMs_ = 0;
+      ackUntilMs_ = 0;
+      return;
+    }
 
     ClockTime t = model_.get();
 
@@ -4458,8 +4752,25 @@ class FocusReminderScheduler {
     } else if (s.focusReminder_startHour > s.focusReminder_endHour) {
       // Wrapped window (e.g., 22:00-08:00, crosses midnight)
       inWindow = (t.hour >= s.focusReminder_startHour || t.hour < s.focusReminder_endHour);
+    } else {
+      // start == end (v2.31.0): treat as a 24-hour window. The old behavior
+      // silently never fired, which read as broken to anyone meaning "all day".
+      inWindow = true;
     }
     if (!inWindow) return;
+
+    // Escalation repeat (v2.31.0): the second and later unacknowledged nudges
+    // play a second swell a few seconds after the first, so a nudge that went
+    // unnoticed in peripheral vision asks twice. Deliberately AFTER the
+    // day/window checks: a repeat straddling the window edge is dropped
+    // rather than played into quiet hours. RAM-only state.
+    if (repeatPending_ && lastFireMs_ != 0 && now - lastFireMs_ >= REPEAT_DELAY_MS) {
+      repeatPending_ = false;
+      triggerReminderAnimation(s.focusReminder_animation, now);
+      ackUntilMs_ = now + ACK_WINDOW_MS;  // the repeat is still acknowledgeable
+      Serial.printf("[FocusReminder] Escalation swell (%u fires unacknowledged)\n",
+                    (unsigned)firesSinceAck_);
+    }
 
     // Interval check: enough time since last fire?
     uint32_t intervalMs = static_cast<uint32_t>(s.focusReminder_intervalMinutes) * 60000UL;
@@ -4470,9 +4781,34 @@ class FocusReminderScheduler {
 
     // Record fire time in RAM only — no EEPROM write needed
     lastFireMs_ = now;
+    ackUntilMs_ = now + ACK_WINDOW_MS;
+    if (firesSinceAck_ < 255) firesSinceAck_++;
+    repeatPending_ = (firesSinceAck_ >= 2);
 
-    Serial.printf("[FocusReminder] Fired at %02d:%02d (interval=%d min)\n",
-                  t.hour, t.minute, s.focusReminder_intervalMinutes);
+    Serial.printf("[FocusReminder] Fired at %02d:%02d (interval=%d min, unacked=%u)\n",
+                  t.hour, t.minute, s.focusReminder_intervalMinutes,
+                  (unsigned)firesSinceAck_);
+  }
+
+  // True while a button press should read as "I saw it" rather than a time
+  // adjustment. The window opens ONLY at fire time (ackUntilMs_) and closes
+  // on acknowledgment — acknowledge() must never extend it, or every
+  // subsequent press (including hold-to-repeat time adjustment) would be
+  // eaten as another ack and the buttons would stay dead to time-setting.
+  // Signed delta so a stale deadline is harmless across millis() wrap.
+  bool ackWindowActive(uint32_t now) const {
+    return ackUntilMs_ != 0 && (int32_t)(ackUntilMs_ - now) > 0;
+  }
+
+  // Button acknowledgment (v2.31.0): closes the ack window, clears the
+  // escalation counter, and restarts the interval from this moment. The very
+  // next press adjusts time normally.
+  void acknowledge(uint32_t now) {
+    firesSinceAck_ = 0;
+    repeatPending_ = false;
+    lastFireMs_ = now;
+    ackUntilMs_ = 0;
+    Serial.println("[FocusReminder] Acknowledged by button — interval restarted");
   }
 
  private:
@@ -4491,6 +4827,11 @@ class FocusReminderScheduler {
   ClockRenderer &renderer_;
   SettingsStore &settings_;
   uint32_t lastFireMs_ = 0;
+  uint32_t ackUntilMs_ = 0;     // ack window deadline; set at fire time only, cleared by ack
+  uint8_t firesSinceAck_ = 0;   // nudges since the last button acknowledgment (RAM only)
+  bool repeatPending_ = false;  // escalation: play a second swell after the current fire
+  static constexpr uint32_t REPEAT_DELAY_MS = 6000;   // past the longest nudge animation (~4.4s)
+  static constexpr uint32_t ACK_WINDOW_MS = 15000;    // press within this of a fire = acknowledge
 };
 
 class ButtonInput {
@@ -4644,7 +4985,19 @@ uint32_t lastStatusLogMs = 0;
 static uint8_t lastMinute = 255;
 
 static void setupDemoModeRoutes() {
-  webUi.getServer().on("/demo/start", HTTP_POST, [](){ demoMode.start(); webUi.getServer().sendHeader("Connection","close"); webUi.getServer().send(200, "application/json", "{\"status\":\"started\"}"); });
+  webUi.getServer().on("/demo/start", HTTP_POST, [](){
+    // ?delay=<seconds> (0-60) holds the clock dark before the reel opens, so a
+    // camera can be rolling and settled first. Handled on-device rather than by
+    // a browser timer so the countdown survives the tab being closed or slept.
+    uint32_t preRollMs = 0;
+    if (webUi.getServer().hasArg("delay")) {
+      const long secs = webUi.getServer().arg("delay").toInt();
+      preRollMs = (uint32_t)constrain(secs, 0L, 60L) * 1000UL;
+    }
+    demoMode.start(preRollMs);
+    webUi.getServer().sendHeader("Connection","close");
+    webUi.getServer().send(200, "application/json", "{\"status\":\"started\"}");
+  });
   webUi.getServer().on("/demo/stop", HTTP_POST, [](){ demoMode.stop(); webUi.getServer().sendHeader("Connection","close"); webUi.getServer().send(200, "application/json", "{\"status\":\"stopped\"}"); });
   webUi.getServer().on("/demo/status", HTTP_GET, [](){ webUi.getServer().sendHeader("Connection","close"); webUi.getServer().send(200, "application/json", demoMode.statusJson()); });
   webUi.getServer().on("/demo/brightnessCycle", HTTP_POST, [](){
@@ -4710,11 +5063,10 @@ static void logRuntimeStatus(uint32_t now) {
     float lx = luxSensor.lux();
     uint8_t brRamped = luxSensor.autoBrightnessCached(now);
     uint8_t brTarget = luxSensor.autoBrightnessTarget();
-    uint8_t brEffective = constrain((int)((uint16_t)brRamped * s.autoBrightnessGain / 100u),
-                                    (int)s.minAutoBrightness, (int)s.maxAutoBrightness);
-    Serial.printf("  Lux   : %.1f lux  br=%d->%d(eff=%d)  mode=%d  min=%d  max=%d  gain=%d%%\n",
+    uint8_t brEffective = autoSpanMap(brRamped, s.minAutoBrightness, s.maxAutoBrightness);
+    Serial.printf("  Lux   : %.1f lux  br=%d->%d(eff=%d)  mode=%d  min=%d  max=%d\n",
                   lx, brTarget, brRamped, brEffective,
-                  s.autoBrightnessMode, s.minAutoBrightness, s.maxAutoBrightness, s.autoBrightnessGain);
+                  s.autoBrightnessMode, s.minAutoBrightness, s.maxAutoBrightness);
   } else {
     Serial.println("  Lux   : VEML7700 not available");
   }
@@ -4934,11 +5286,30 @@ void loop() {
 
   {
     int upDelta = buttons.consumeUp();
-    if (upDelta != 0) { timeModel.addMinutes(upDelta); renderer.setStatus(STATUS_BUTTON, 700); }
-  }
-  {
     int downDelta = buttons.consumeDown();
-    if (downDelta != 0) { timeModel.addMinutes(downDelta); renderer.setStatus(STATUS_BUTTON, 700); }
+    if ((upDelta != 0 || downDelta != 0) && reminderScheduler.ackWindowActive(now)) {
+      // During and just after a nudge, a press means "I saw it" — consuming it
+      // as a time adjustment here was the v2.30 behavior, which corrupted the
+      // clock as the only physical response to a reminder (v2.31.0).
+      reminderScheduler.acknowledge(now);
+      renderer.setStatus(STATUS_BUTTON, 700);
+    } else {
+      if (upDelta != 0) { timeModel.addMinutes(upDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
+      if (downDelta != 0) { timeModel.addMinutes(downDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
+    }
+  }
+
+  // Time-truth cue (v2.31.0): until NTP lands or the user sets the time by
+  // hand, the face is showing a confidently wrong time. A short amber chase
+  // every 10 s makes "plausible but unset" visibly different from "set".
+  // Respects the status-blips toggle.
+  {
+    static uint32_t lastUnsetCueMs = 0;
+    if (!timeSync.synced() && !timeSync.manuallySet() && settings.statusAnimations &&
+        now - lastUnsetCueMs >= 10000UL) {
+      lastUnsetCueMs = now;
+      renderer.setStatus(STATUS_TIME_UNSET, 900);
+    }
   }
 
   if (renderer.animating()) {

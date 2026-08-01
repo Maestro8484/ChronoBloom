@@ -15,7 +15,7 @@ The Focus Reminder system is a non-blocking scheduler that fires attention-grabb
 ```
 checkAndFire(now) {
   1. Check master enable flag
-  2. Get current day-of-week (TODO: from NTP sync)
+  2. Get current day-of-week (from the NTP-synced epoch; filter skipped if never synced)
   3. Validate day matches bitmask
   4. Validate current hour in window [startHour, endHour)
   5. Validate interval elapsed: (now - lastFireMs) >= (intervalMinutes * 60000ms)
@@ -25,11 +25,11 @@ checkAndFire(now) {
 
 ### Animation Reuse
 Reminders can invoke existing `ClockRenderer` methods (or fire a dedicated nudge):
-- `triggerQuarterAnimation(now)` — Slow Comet, Dual Orbit, or Bloom Ripple
-- `triggerHalfHourAnimation(now)` — Unfurl, Three Comets, or Breathe
-- `triggerHourAnimation(now)` — Ceremony, Galaxy Spin, Supernova, Comet Relay, or Deep Breath
+- `triggerQuarterAnimation(now)` -- Slow Comet, Dual Orbit, or Bloom Ripple
+- `triggerHalfHourAnimation(now)` -- Unfurl, Three Comets, or Breathe
+- `triggerHourAnimation(now)` -- Ceremony, Galaxy Spin, Supernova, Comet Relay, or Deep Breath
 
-No new animations added in v1; all are blocking `delay()`-based. TODO: async animation queue in v2.1.
+Six dedicated nudge animations also exist (modes 6-11: Gentle Pulse, Orbiting Orb, Ripple In, Heartbeat, Slow Bloom, Firefly). All reminder animations are non-blocking `millis()`-based state machines; the loop, web UI, and time-keeping run throughout.
 
 ### EEPROM Schema
 ```cpp
@@ -42,15 +42,15 @@ struct ClockSettings {
   uint8_t focusReminder_endHour;          // 1 byte: 0-23
   uint16_t focusReminder_intervalMinutes; // 2 bytes: 1-1440
   uint8_t focusReminder_daysMask;         // 1 byte: bitmask Sun(0)-Sat(6)
-  uint8_t focusReminder_animation;        // 1 byte: 0-5 (animation enum)
+  uint8_t focusReminder_animation;        // 1 byte: 0-11 (0-5 reuse chime anims, 6-11 dedicated nudges)
   uint8_t focusReminder_durationSeconds;  // 1 byte: reserved for v2 (currently unused)
-  uint32_t focusReminder_lastFireMs;      // 4 bytes: millis() timestamp of last fire
+  uint32_t focusReminder_lastFireMs;      // 4 bytes: reserved; fire time is tracked in RAM only
   // 3 bytes reserved for future expansion
 };
 ```
 
 **Validation:** `SettingsStore::valid()` checks all fields are in legal range.
-**Defaults:** Reminder disabled, 08:00-22:00 window, 60-min interval, all days, animation 0 ("Use quarter animation").
+**Defaults:** Reminder disabled, 08:00-22:00 window, 60-min interval, no days selected, animation 0 ("Use quarter animation").
 **Persistence:** Auto-saved to EEPROM on WebUI "Save reminder" button.
 
 ### WebUI Integration
@@ -60,7 +60,7 @@ struct ClockSettings {
   - Start/end hour (number inputs, 0-23)
   - Interval (number input, 1-1440 minutes)
   - Days-of-week selector (7 checkboxes, Sun-Sat, stored as bitmask)
-  - Animation dropdown (6 options: reuse existing animations)
+  - Animation dropdown (9 options: reuse the quarter/half-hour/hour chime animation, or one of the six dedicated nudges)
   - Save button (POSTs to `/settings` endpoint)
 - **Real-time sync:** Reminder config loaded at page load, updates reflected after save
 
@@ -78,19 +78,19 @@ struct ClockSettings {
 ### Serial Logging
 Each fire logs:
 ```
-[FocusReminder] Fired at HH:MM (interval=N min, dow=D)
+[FocusReminder] Fired at HH:MM (interval=N min)
 ```
 Enable via Serial monitor at 115200 baud.
 
 ### No Blocking on Reminder Fire
 - Scheduler call is non-blocking (< 1ms)
-- Animation trigger calls `renderer_.triggerQuarterAnimation(now)` etc.
-- Those methods ARE internally blocking (use `delay()`)
-- This is acceptable for MVP but should be queued in v2.1
+- Animation trigger calls `renderer_.triggerReminderDirectAnimation(mode, now)`
+- Reminder animations are non-blocking `millis()`-based state machines; no `delay()`
 
-### Day-of-Week Calculation (TODO)
-Current: hardcoded to Sunday (0).
-Planned: compute from NTP-synced system `struct tm` after `configTzTime()` + `localtime_r()`.
+### Day-of-Week Calculation
+Computed from the NTP-synced system epoch via `localtime_r()` (`tm_wday`, 0=Sun).
+If the epoch was never synced (offline boot, time set via buttons/web), the day
+filter is skipped rather than silently never firing; the hour window still applies.
 
 ---
 
@@ -108,4 +108,4 @@ Planned: compute from NTP-synced system `struct tm` after `configTzTime()` + `lo
 - [ ] Set time to within window + matching day, wait interval: animation fires
 - [ ] Interval fires multiple times: every 60 min (if set to 60)
 - [ ] Outside time window: no fire
-- [ ] Non-matching day: no fire (once day calc is fixed)
+- [ ] Non-matching day: no fire (requires an NTP-synced clock)

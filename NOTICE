@@ -7,8 +7,8 @@ Original source: https://www.dropbox.com/sh/1uthw4znj5bmmzl/AACjGNHsKtgZ5gjzJ061
 Arduino sketch V4.0, dated 31 December 2015.
 
 Lineage:
-  Steve Manley — 3-ring NeoPixel concept, original Arduino sketch, and the
-    3D-printed light-shaping frame design the printed core remixes (2015)
-  Maestro8484 — Arduino Nano and ESP8266 editions, multi-scale frame remixes
+  Steve Manley -- 3-ring NeoPixel concept, original Arduino sketch, and the
+    3D-printed light-shaping frame design the printed reflector remixes (2015)
+  Maestro8484 -- Arduino Nano and ESP8266 editions, multi-scale frame remixes
     (8"/10"/15"), then a ground-up ESP32-C3 rewrite: WiFi, NTP, OTA, web UI,
     auto-brightness, Focus Reminders (2022-2026)

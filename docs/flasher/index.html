@@ -43,6 +43,10 @@
     <strong>This browser cannot flash.</strong> Flashing uses Web Serial, which today only Chrome, Edge and Opera implement, on desktop. Safari and Firefox do not, and neither does any browser on iOS. Open this page in Chrome or Edge on a computer.
   </div>
 
+  <div class="unsupported" id="loadfail">
+    <strong>The flash tool failed to load.</strong> Check your connection or ad blocker and reload the page.
+  </div>
+
   <div class="cta">
     <esp-web-install-button manifest="manifest.json">
       <button class="fallback" slot="activate">Connect and flash</button>
@@ -50,6 +54,7 @@
       <span slot="not-allowed">This page has to be served over HTTPS to flash.</span>
     </esp-web-install-button>
     <p class="note" id="ver" style="margin:14px 0 0"></p>
+    <p class="note" style="margin:6px 0 0">This binary is the 8-inch build. The 15-inch variant currently needs building from source with PlatformIO.</p>
   </div>
   <p class="note">Plug the board into a USB-C port first, then press the button and pick the serial port that appears. Flashing takes about a minute.</p>
 
@@ -62,12 +67,13 @@
 
   <h2>What happens after it flashes</h2>
   <ol>
-    <li>Right after flashing, the browser may offer to set up WiFi itself, no phone needed. If that box shows up, type in your network name and password there and skip ahead to the last step.</li>
-    <li>If it does not show up, or you close it, the rings light up <strong>blue</strong> instead. That is the clock saying it has no WiFi yet and has opened a setup network of its own.</li>
+    <li>Right after flashing, the browser may offer to set up WiFi itself, no phone needed. If that box shows up, type in your network name and password there and skip ahead to the last step. Do it promptly: the clock only listens to the browser for a short while, and while it is listening the rings hold <strong>teal</strong>.</li>
+    <li>If that box never shows up, or you close it, or it sits there and then says it timed out, nothing is broken. The rings turn <strong>blue</strong> and the clock opens a setup network of its own. That route always works, so use it and carry on below.</li>
     <li>On your phone, join the WiFi network <code>esp32c3-clock-setup</code>. It has no password.</li>
     <li>A setup page opens by itself. If it does not, go to <code>http://192.168.4.1</code>.</li>
     <li>Pick your network and enter its password. The clock saves it and connects.</li>
     <li>Open <code>http://esp32c3-v3-8inch.local/</code> to reach the clock, then set your time zone under Time &amp; light. It gets the time itself from the internet after that.</li>
+    <li>If that address does not load, find the clock in your router's device list and browse to its IP address directly.</li>
   </ol>
   <p class="note">If the browser never offered WiFi setup and the rings never turn blue either, the flash did not take. Re-seat the cable and run it again.</p>
 
@@ -78,8 +84,10 @@
   <table>
     <tr><td>No port in the list</td><td>Charge-only USB cable, or the board is not plugged in. Try another cable first.</td></tr>
     <tr><td>Port is there, flashing fails</td><td>Close anything else holding the port: a serial monitor, Arduino IDE, PlatformIO.</td></tr>
+    <tr><td>Flash failed or got interrupted</td><td>No harm done. A failed flash cannot brick the board. Run the flasher again and pick the erase option.</td></tr>
     <tr><td>Button does nothing</td><td>Not Chrome or Edge, or the page is not on HTTPS.</td></tr>
-    <tr><td>Flashed, but no lights</td><td>The rings need their own 5V supply. USB alone powers the board, not the LEDs.</td></tr>
+    <tr><td>Browser WiFi box timed out</td><td>The clock only listens to the browser for a short while after it boots, so a slow answer misses it. The flash itself was fine. Wait for the blue rings and set WiFi up on the clock's own network instead.</td></tr>
+    <tr><td>Flashed, but no lights</td><td>Check the wiring from the board's 5V pin to the rings. One USB-C charger powers everything, there is no separate LED supply.</td></tr>
     <tr><td>Lights, but wrong positions</td><td>Wiring or LED order. See <a href="https://github.com/Maestro8484/ChronoBloom/blob/main/docs/HARDWARE.md">HARDWARE.md</a>.</td></tr>
   </table>
 
@@ -88,7 +96,7 @@
 
 </div>
 
-<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js"></script>
 <script>
   // Show the version straight from the manifest, so this page can never claim a
   // version the flasher would not actually install.
@@ -97,6 +105,17 @@
       'Firmware ' + m.version + ' for ' + (m.builds && m.builds[0] ? m.builds[0].chipFamily : 'ESP32-C3');
   }).catch(() => {});
   if (!('serial' in navigator)) document.getElementById('unsupported').style.display = 'block';
+  // If the flash tool script never arrived (blocked CDN, ad blocker, offline),
+  // the button would sit there dead. Say so instead. On a slow connection the
+  // module can still land after the warning, so clear it the moment the
+  // element registers.
+  setTimeout(function () {
+    if (!customElements.get('esp-web-install-button'))
+      document.getElementById('loadfail').style.display = 'block';
+  }, 6000);
+  customElements.whenDefined('esp-web-install-button').then(function () {
+    document.getElementById('loadfail').style.display = 'none';
+  });
 </script>
 </body>
 </html>

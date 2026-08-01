@@ -1,6 +1,6 @@
 # Animation Catalog
 
-> **✅ Current animation set — verified against source at v2.27.3 (2026-07-17).**
+> **Current animation set -- verified against source at v2.27.3 (2026-07-17).**
 > v2.4.0 replaced the original 29-mode catalog with 16 palette-aware animations.
 > The per-mode descriptions below now document that live set (they were legacy /
 > historical through v2.9.x and were rewritten to match source in v2.10.2).
@@ -25,14 +25,14 @@
 
 ## v2.8.0 Feel Pass (2026-07-03)
 
-No modes were added, removed, or renumbered — this pass reworked the following in
+No modes were added, removed, or renumbered -- this pass reworked the following in
 place, purely for visual feel. Full detail in `docs/CHANGELOG.md` [2.8.0]; summary:
 
-- **Reminder nudges (modes 6/8/9/10 — Gentle Pulse, Ripple In, Heartbeat, Slow Bloom)**:
+- **Reminder nudges (modes 6/8/9/10 -- Gentle Pulse, Ripple In, Heartbeat, Slow Bloom)**:
   every reminder's peak brightness is now capped by a shared `NUDGE_CEIL` (205/255,
   ~80%) so a nudge never blasts full intensity. Gentle Pulse and Ripple In got longer,
   softer envelopes with a subtle warm hue drift. Heartbeat was rebuilt from a hard
-  140ms/80ms strobe into two eased 350ms/550ms swells — same two-thump cadence, now a
+  140ms/80ms strobe into two eased 350ms/550ms swells -- same two-thump cadence, now a
   breath instead of a warning flash. Slow Bloom now unfurls its inner-12 stamen ring
   (previously skipped).
 - **Galaxy Spin (hour mode 2)**: `spinWave()` replaced by two-arm `galaxyWave()` with a
@@ -40,16 +40,20 @@ place, purely for visual feel. Full detail in `docs/CHANGELOG.md` [2.8.0]; summa
   with no dark lanes). Added slow hue drift, twinkling "star" pixels in the dark lanes,
   and a twinkling core.
 - **Comet Relay (hour mode 4)**: each comet head now sweeps the palette as it travels,
-  with the trail lagging a few hue-steps behind — reads as a rainbow spiral instead of
+  with the trail lagging a few hue-steps behind -- reads as a rainbow spiral instead of
   a flat-colored comet.
 - **Bloom Ripple (quarter mode 3) / Unfurl (half-hour mode 1)**: explicit flower-part
-  coloring from the center out — warm gold stamen (center + inner-12, palette-independent)
-  → stigma (middle-24, palette) → petals (outer-60, palette), via new `stamenColor()`.
-- **Demo Mode**: hour showcase (step 4) now plays Ceremony → Galaxy Spin → Supernova →
-  Comet Relay (was 3, now 4); reminder step (step 5) plays Gentle Pulse → Ripple In →
-  Heartbeat → Slow Bloom once each (was Gentle Pulse ×2 + Heartbeat ×2) to demonstrate
-  the full gentled-nudge range. Total demo runtime ~110s (was ~99s). See
-  `docs/publish/DEMO_MODE.md` for the current step table.
+  coloring from the center out -- warm gold stamen (center + inner-12, palette-independent)
+  -> stigma (middle-24, palette) -> petals (outer-60, palette), via new `stamenColor()`.
+  **Superseded:** v2.9.7 made both animations theme-faithful, so the center is now
+  `bloomColor(3, 0)` -- its own configured/palette color -- not the palette-independent warm
+  gold described above (verified `animQ3` main.cpp:2170, `animH1` main.cpp:2195).
+  `stamenColor()` still exists but no longer drives these two.
+- **Demo Mode**: hour showcase (step 4) now plays Ceremony -> Galaxy Spin -> Supernova ->
+  Comet Relay (was 3, now 4); reminder step (step 5) plays Gentle Pulse -> Ripple In ->
+  Heartbeat -> Slow Bloom once each (was Gentle Pulse x2 + Heartbeat x2) to demonstrate
+  the full gentled-nudge range. Total demo runtime ~110s (was ~99s). The step table
+  lives in `DemoMode::steps[]` in `src/main.cpp`.
 
 ## Animation Design Principles
 
@@ -57,11 +61,11 @@ place, purely for visual feel. Full detail in `docs/CHANGELOG.md` [2.8.0]; summa
 Animations exist to **acknowledge the passage of time** and **provide visual feedback**, not to obscure the clock display. All animations are time-bound and return to normal clock display.
 
 ### Rules
-1. **Hands always win** — After animation ends, clock display must be accurate
-2. **Escalating intensity** — More frequent events = shorter/subtler animations
-3. **Configurable** — User can disable or select specific animations
-4. **Time-bound** — All animations have fixed maximum duration
-5. **Brightness-aware** — Respect user's brightness settings (day/night/auto)
+1. **Hands always win** -- After animation ends, clock display must be accurate
+2. **Escalating intensity** -- More frequent events = shorter/subtler animations
+3. **Configurable** -- User can disable or select specific animations
+4. **Time-bound** -- All animations have fixed maximum duration
+5. **Brightness-aware** -- Respect user's brightness settings (day/night/auto)
 
 ---
 
@@ -69,17 +73,17 @@ Animations exist to **acknowledge the passage of time** and **provide visual fee
 
 ### Time-Interval Animations
 
-**Quarter-Hour** (:15, :30, :45) — **Subtle acknowledgment** (2-3 sec)
+**Quarter-Hour** (:15, :30, :45) -- **Subtle acknowledgment** (2-3 sec)
 - Frequency: 4x per hour
 - Intensity: Low
 - Purpose: Mark 15-minute intervals without disruption
 
-**Half-Hour** (:00, :30) — **Medium celebration** (4-6 sec)
+**Half-Hour** (:00, :30) -- **Medium celebration** (4-6 sec)
 - Frequency: 2x per hour
 - Intensity: Medium
 - Purpose: Significant time marker, brief visual interest
 
-**Top of Hour** (:00 only) — **Full spectacle** (8-12 sec)
+**Top of Hour** (:00 only) -- **Full spectacle** (8-12 sec)
 - Frequency: 1x per hour
 - Intensity: High
 - Purpose: Hourly celebration, showcase LED capabilities
@@ -151,7 +155,7 @@ Two pixels half a ring apart (30 LEDs) orbit the outer 60-ring together, each wi
 ### 3. Bloom Ripple (default)
 **Mode**: `quarterAnimation = 3` (`animQ3`, ~2.3s)
 
-A bloom ripples outward from the heart: center, then inner-12, then middle-24, then outer-60 light on staggered onsets and fade back. Since v2.9.7 each ring blooms in its own clock color: center→`centerColor`, inner→`innerHourColor`, middle→`hoursColor`, outer→`outerMarkerColor` via `bloomColor()`. On a mood palette each ring uses that palette's color for the ring instead. The default quarter animation and the signature ChronoBloom effect.
+A bloom ripples outward from the heart: center, then inner-12, then middle-24, then outer-60 light on staggered onsets and fade back. Since v2.9.7 each ring blooms in its own clock color: center->`centerColor`, inner->`innerHourColor`, middle->`hoursColor`, outer->`outerMarkerColor` via `bloomColor()`. On a mood palette each ring uses that palette's color for the ring instead. The default quarter animation and the signature ChronoBloom effect.
 
 ---
 
@@ -162,12 +166,12 @@ Medium-intensity markers fired at :30.
 ### 1. Unfurl (default)
 **Mode**: `halfHourAnimation = 1` (`animH1`, ~5s)
 
-Petals unfurl from the heart outward. The center stamen lights first, then the inner-12, middle-24 and outer-60 rings each fill in progressively, LED by LED, on staggered onsets — a flower opening. Ring colors via `bloomColor()`.
+Petals unfurl from the heart outward. The center stamen lights first, then the inner-12, middle-24 and outer-60 rings each fill in progressively, LED by LED, on staggered onsets -- a flower opening. Ring colors via `bloomColor()`.
 
 ### 2. Three Comets
 **Mode**: `halfHourAnimation = 2` (`animH2`, ~5s)
 
-One comet per ring (outer, middle, inner), all travelling the same direction, each with a fading trail in its ring's band color — a coordinated three-ring relay rather than three unrelated chasers.
+One comet per ring (outer, middle, inner), all travelling the same direction, each with a fading trail in its ring's band color -- a coordinated three-ring relay rather than three unrelated chasers.
 
 ### 3. Breathe
 **Mode**: `halfHourAnimation = 3` (`animH3`, ~5s)
@@ -193,17 +197,17 @@ Two bright spiral arms rotate against dark "space" lanes (`galaxyWave()` with a 
 ### 3. Supernova
 **Mode**: `hourAnimation = 3` (`animHr3`, ~8s)
 
-A bright core ignites, then expanding shells detonate outward (inner→middle→outer), each easing in, before a global fade over the final second. Ring colors via `bloomColor()`; since v2.9.7 the outer shell lights on every palette (it used to go dark on some).
+A bright core ignites, then expanding shells detonate outward (inner->middle->outer), each easing in, before a global fade over the final second. Ring colors via `bloomColor()`; since v2.9.7 the outer shell lights on every palette (it used to go dark on some).
 
 ### 4. Comet Relay
 **Mode**: `hourAnimation = 4` (`animHr4`, ~8s)
 
-A relay of comets hands off outer→middle→inner. Each comet's head sweeps the palette as it travels, with its trail lagging a few hue-steps behind, so it reads as a rainbow spiral rather than a flat comet. A warm stamen dot lights at the finish.
+A relay of comets hands off outer->middle->inner. Each comet's head sweeps the palette as it travels, with its trail lagging a few hue-steps behind, so it reads as a rainbow spiral rather than a flat comet. A warm stamen dot lights at the finish.
 
 ### 5. Deep Breath
 **Mode**: `hourAnimation = 5` (`animHr5`, ~9s)
 
-The whole flower swells and settles on one long gamma-weighted breath — every ring and the center rise and fall together. Ring colors via `bandColor()`.
+The whole flower swells and settles on one long gamma-weighted breath -- every ring and the center rise and fall together. Ring colors via `bandColor()`.
 
 ---
 
@@ -211,32 +215,32 @@ The whole flower swells and settles on one long gamma-weighted breath — every 
 
 Triggered by the Focus Reminder scheduler (not by clock time) when `focusReminder_animation` is 6-11. All use the **reminder palette** (`reminderPalette`), selected independently of the chime palette so a nudge can read differently from an interval chime. Since v2.10.3 the reminder palette applies to **every** reminder-triggered animation: nudge modes 0-2, which delegate to the quarter/half-hour/hour chime animations, also render in the reminder palette instead of the chime's animation palette. Every reminder's peak brightness is capped by a shared `NUDGE_CEIL` (205/255, ~80%) so it reads as a swell, never an alert flash (v2.8.0 feel pass).
 
-### ANIM_REM1 — Gentle Pulse
+### ANIM_REM1 -- Gentle Pulse
 **Mode**: `focusReminder_animation = 6` (`animRem1`, ~3.6s)
 
-A slow ~1.2s rise / brief crest / ~1.9s fall across all rings — a breath, not a blink — with a subtle warm hue drift over the swell.
+A slow ~1.2s rise / brief crest / ~1.9s fall across all rings -- a breath, not a blink -- with a subtle warm hue drift over the swell.
 
-### ANIM_REM2 — Orbiting Orb
+### ANIM_REM2 -- Orbiting Orb
 **Mode**: `focusReminder_animation = 7` (`animRem2`, ~3s)
 
 The outer ring holds a dim wash while a single orb orbits the inner-12 with a short trail. The quietest, most localized nudge.
 
-### ANIM_REM3 — Ripple In
+### ANIM_REM3 -- Ripple In
 **Mode**: `focusReminder_animation = 8` (`animRem3`, ~2.8s)
 
-Rings swell inward in sequence — outer, middle, inner, center — each with a soft ~600ms rise / ~1.1s fall.
+Rings swell inward in sequence -- outer, middle, inner, center -- each with a soft ~600ms rise / ~1.1s fall.
 
-### ANIM_REM4 — Heartbeat
+### ANIM_REM4 -- Heartbeat
 **Mode**: `focusReminder_animation = 9` (`animRem4`, ~2.1s)
 
-Two eased swells in a two-thump cadence (350ms rise / 550ms fall), the second beat quieter — a heartbeat that breathes rather than strobes (rebuilt from a hard strobe in v2.8.0).
+Two eased swells in a two-thump cadence (350ms rise / 550ms fall), the second beat quieter -- a heartbeat that breathes rather than strobes (rebuilt from a hard strobe in v2.8.0).
 
-### ANIM_REM5 — Slow Bloom
+### ANIM_REM5 -- Slow Bloom
 **Mode**: `focusReminder_animation = 10` (`animRem5`, ~4s)
 
-A slow bloom opens outer→middle→inner→center over ~4s, completing petals-inward to the stamen.
+A slow bloom opens outer->middle->inner->center over ~4s, completing petals-inward to the stamen.
 
-### ANIM_REM6 — Firefly
+### ANIM_REM6 -- Firefly
 **Mode**: `focusReminder_animation = 11` (`animRem6`, ~4s)
 
 Fourteen fixed points scattered across the three rings breathe on their own staggered cycles (~1.4s period, roughly 55% of cycles hosting a light), so the swarm drifts rather than pulses in unison. The whole nudge fades in over ~0.7s and out over ~0.9s.
@@ -253,11 +257,26 @@ All palette-aware animations use these shared controls:
 |---------|-------|-------|--------|
 | Color palette (chimes) | `animationPalette` | 0-3, 7 | One shared 5-option list since v2.27.0: 7 = Clock colors (default, ring-mapped face colors), 0 = Golden hour (warm), 1 = Moonlight (cool), 2 = Dawn (soft-warm), 3 = Twilight (muted-cool). Each mood is four explicit per-ring colors (outer/middle/inner/center) rendered solid per ring. Any other value sanitizes to 7 (`sanitizePaletteValue`) |
 | Reminder palette (nudges) | `reminderPalette` | 0-3, 7 | The same 5-option list as `animationPalette`, selected independently so a nudge can read differently from a chime. Applies to every reminder-triggered animation, including delegated nudge modes 0-2 |
-| Speed | `animationSpeed` | 1-5 | 0.5× / 0.75× / 1× / 1.5× / 2× time multiplier |
+| Speed | `animationSpeed` | 1-5 | 0.5x / 0.75x / 1x / 1.5x / 2x time multiplier |
 | Peak brightness | `animationBrightness` | 50-255 | Max LED brightness during animation |
 | Trail length | `trailLength` | 2-12 | LEDs in chase/sweep trail |
 
-The `paletteColor(position, useReminderPalette)` helper maps 0-255 → palette color at `animationBrightness`. The `scaledElapsed(elapsed)` helper applies speed scaling to timing.
+The `paletteColor(position, useReminderPalette)` helper maps 0-255 -> palette color at `animationBrightness`. The `scaledElapsed(elapsed)` helper applies speed scaling to timing.
+
+### Palette 7 renders the face, including its sameness (know this before filming)
+
+`Clock colors` (7) is the default and faithfully reproduces the configured face -- the rings
+fusing into one flower is its documented intent (`bloomColor()`, main.cpp:1845-1847). The
+consequence: **if the face theme is a tight color family, every bloom animation reads as one
+hue.** Checked against both live units 2026-07-28 -- the 15" has `hoursColor #B30000` and
+`innerHourColor #B40404` (the same red to the eye), and the 8" has outer/middle/center all one
+orange. Bloom Ripple on palette 7 therefore looks monochrome on both, which is correct behavior,
+not a bug.
+
+For a camera, select a **mood palette (0-3)** instead. Since v2.31.1 the moods travel hue from
+ring to ring (rim to core) while brightening inward, which is what makes a bloom read as radial
+on video. Try any candidate ramp on a live clock without flashing:
+`python scripts/tune_palette.py --mood 0 --anim quarter:3`.
 
 ---
 
@@ -305,19 +324,19 @@ void setCenterPixel(uint32_t color);
 ## Adding New Animations
 
 ### Process
-1. **Design** — Sketch timing and visual effect on paper
-2. **Implement** — Add `renderMyAnimation(uint32_t now)` method to `ClockRenderer` class
-3. **Integrate** — Add enum value to appropriate trigger (quarter/half/hour)
-4. **Web UI** — Add option to dropdown selector
-5. **Test** — Verify animation duration, clean return to clock display
+1. **Design** -- Sketch timing and visual effect on paper
+2. **Implement** -- Add `renderMyAnimation(uint32_t now)` method to `ClockRenderer` class
+3. **Integrate** -- Add enum value to appropriate trigger (quarter/half/hour)
+4. **Web UI** -- Add option to dropdown selector
+5. **Test** -- Verify animation duration, clean return to clock display
 
 ### Guidelines
-- **Respect brightness** — Use `settings_.get().dayBrightness` as reference
-- **Time limit** — Quarter=3s, Half=6s, Hour=12s maximum
-- **Clean exit** — Always return to accurate clock display
-- **No blocking delays >50ms** — Use state machine for longer animations
-- **Test at extremes** — Full brightness and minimum brightness
-- **Test all variants** — 8" and 15" clocks may look different
+- **Respect brightness** -- Use `settings_.get().dayBrightness` as reference
+- **Time limit** -- Quarter=3s, Half=6s, Hour=12s maximum
+- **Clean exit** -- Always return to accurate clock display
+- **No blocking delays >50ms** -- Use state machine for longer animations
+- **Test at extremes** -- Full brightness and minimum brightness
+- **Test all variants** -- 8" and 15" clocks may look different
 
 ### Example Template
 ```cpp
@@ -356,8 +375,8 @@ void renderMyAnimation(uint32_t now) {
 ## Future Animation Ideas
 
 ### Sensor-Triggered
-- **Sunrise detected** (VEML7700): 5-minute warm color fade (dark blue → orange → yellow)
-- **Sunset detected** (VEML7700): 5-minute cool color fade (yellow → orange → deep purple)
+- **Sunrise detected** (VEML7700): 5-minute warm color fade (dark blue -> orange -> yellow)
+- **Sunset detected** (VEML7700): 5-minute cool color fade (yellow -> orange -> deep purple)
 - **Storm darkness** (sudden lux drop): Lightning flash effect (random white strobes)
 - **Motion detected** (lux spike): Welcome rainbow chase
 
@@ -369,9 +388,9 @@ void renderMyAnimation(uint32_t now) {
 - **User birthday**: Confetti explosion, extended party mode
 
 ### Temperature-Triggered (Future BME280)
-- **Heat wave** (>30°C): Red pulsing intensity
-- **Cold snap** (<5°C): Blue icy shimmer
-- **Comfortable** (18-24°C): Green ambient glow
+- **Heat wave** (>30 degreesC): Red pulsing intensity
+- **Cold snap** (<5 degreesC): Blue icy shimmer
+- **Comfortable** (18-24 degreesC): Green ambient glow
 
 ### Weather-Triggered (Future API)
 - **Rain forecast**: Blue droplets falling animation

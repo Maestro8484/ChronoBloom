@@ -2,6 +2,481 @@
 
 > Formerly neopixelClock-esp32c3-v3
 
+## [2.31.5] - 2026-07-31 (No more 10-second pause on every boot of a portal-set-up clock)
+
+Built clean on both envs. **Not yet observed on hardware.** The check that would confirm it: set a
+board up through the clock's own setup network, then power it off and on with USB serial open. The
+teal ring and the `[Improv] No stored WiFi credentials` line should not appear at all, and the
+portal's `*wm:AutoConnect` line should arrive at roughly 0.5 s instead of roughly 9.5 s.
+
+### Fixed
+- **A clock set up through its own setup network paused 10 seconds on every power-on.** Before the
+  clock does anything else it listens over USB for a browser offering it WiFi, and it skips that
+  wait when it already has WiFi. It decided that by looking in one place: the credentials saved by
+  the clock's own WiFi page. Credentials entered on the setup network at 192.168.4.1 are not kept
+  there - the WiFi chip keeps its own copy - so the clock concluded it had never been set up and
+  waited out the full window on every single boot, before it even tried to join the network.
+
+  Since the flasher page recommends the setup network as the reliable route, that was the common
+  case for anyone new, and it cost them 10 seconds of dark clock at every power-on.
+
+  The check now asks all three places credentials can live, the same three `setupWiFi()` already
+  asks: the WiFi page's own store, the WiFi chip's copy (`WiFiManager::getWiFiIsSaved()`, the same
+  call `setupWiFi()` uses, rather than a second hand-written version of it), and any network baked
+  in at build time. Anything found means the clock is set up and skips the wait. This can only ever
+  make the clock skip the wait more readily, never less, so it cannot lock anyone out of setting up
+  a new board; a board holding credentials that no longer work still falls through to the setup
+  network, exactly as it does today. Sequencing was checked rather than assumed: the WiFi stack is
+  started one line earlier, so it can answer the question by the time it is asked.
+  (`src/main.cpp`, `WebUi::begin()`.)
+
+## [2.31.4] - 2026-07-31 (The browser's WiFi box no longer times out mid-typing)
+
+Built clean on both envs and **verified on hardware**, against the published 2.31.3 as a control.
+Both binaries were flashed onto a fully erased board over USB and given the same test: answer the
+browser handshake, then go completely silent for 35 seconds, the way a person reads the box and
+types a password, then send the credentials late.
+
+| | 2.31.3 (published) | 2.31.4 |
+|---|---|---|
+| Handshake answered | 0.12 s | 0.12 s |
+| Setup portal opened | 9.87 s | did not open |
+| Credentials sent at | 35.14 s | 35.22 s |
+| Device received them | **no, silence** | yes, at 35.33 s |
+| Result | timed out, portal fallback needed | provisioned at 37.91 s, connected, mDNS + NTP up |
+
+Confirmed afterwards against the running device: `/diag` reports `firmware_version 2.31.4`.
+
+### Fixed
+- **The browser's "Configure WiFi" box timed out on a freshly flashed board.** Reported from the
+  first real bare-board flash test (2026-07-30): flashing worked, the box appeared, credentials
+  were entered, and it timed out anyway. Fallback to the clock's own setup network worked.
+
+  The clock listened for a browser over USB for a fixed 10 seconds at boot and then stopped, moving
+  on to the captive portal - which blocks for its whole lifetime, so the main loop never ran and
+  nothing serviced the browser again. Ten seconds is less time than it takes anyone to read the
+  box, pick a network and type a password, so the answer arrived at a device that had stopped
+  listening. That made it the expected outcome for nearly every user, not bad luck.
+
+  Now the deadline is pushed out as long as a client keeps talking: 10 seconds of silence still
+  closes the window, but any complete, checksum-valid Improv frame - including the browser's
+  opening handshake, which fires while the user is still reading the dialog - buys another 60
+  seconds. A board nobody is talking to behaves exactly as before and opens the portal on the same
+  schedule. Only line noise is ignored, since a partial frame never counts as a client.
+  (`IMPROV_CLIENT_WINDOW_MS`, `src/main.cpp`.)
+
+### Measured, on the way to that fix
+- A client polling twice a second over USB serial gets no reply at all once the clock is connected
+  to WiFi, confirming Improv is deliberately deactivated on a running clock and that USB cannot
+  silently reconfigure one. Read off a live board on COM12.
+
+## [2.31.3] - 2026-07-29 (Mood palettes, second pass: saturation held)
+
+Data-only, no firmware logic touched. Build-verified on the 8"; **not yet observed on hardware** -
+both clocks run 2.31.1.
+
+### Fixed
+- **The v2.31.1 mood palettes still read monochrome on the strip, and the cause was saturation,
+  not hue.** v2.31.1 gave every mood real hue travel measured in HSL degrees, but produced its
+  "brightens toward the core" by *desaturating* each ring inward. WS2812s render low saturation as
+  white, so Moonlight ran 65% -> 46% -> 32% -> 8% HSV saturation: violet at the rim, then white,
+  white, white. The hue travel was real in the arithmetic and invisible in the room.
+  `tools/palettes/palettes.json` had warned about exactly this in its own header ("WS2812 washes
+  pastels to white; keep saturation up") and the first pass ignored it.
+
+  All four moods re-authored to hold saturation high on every ring and take the brightening from
+  value instead. The core still reads as the brightest thing on the face because it is one LED
+  against sixty; a point light needs no help.
+
+  | Mood | Hue travel | Saturation range | Reads as |
+  |---|---|---|---|
+  | Golden hour | 38 deg | 84-95% | red-orange rim to saturated gold core |
+  | Moonlight | 81 deg | 66-85% | violet rim through blue to cyan core |
+  | Dawn | 63 deg | 73-85% | rose rim through coral to amber core |
+  | Twilight | 80 deg | 67-81% | indigo rim through blue to teal core |
+
+  The re-authoring pass now **gates** on saturation >= 58%, hue travel >= 35 deg, monotonic hue
+  outward-to-inward, and a core brighter than the rim, refusing to write if any gate fails, so this
+  class of mistake cannot land silently again.
+
+### Note
+- `src/anim_palettes.h` and `tools/gen_palettes.py` here also carry a concurrent session's
+  comment-only em-dash cleanup. Those two plus `palettes.json` are one generated set; splitting
+  them would leave the header disagreeing with its own source.
+
+## [2.31.2] - 2026-07-29 (The public repo compiles again, and now it cannot stop compiling)
+
+Two halves. First, the publish pipeline was broken and the public repo had been un-buildable since
+the v2.29.0 push on 2026-07-18. Second, and the reason this is worth a version: the checks that
+would have caught it are now code that runs, not prose in a document nobody executes.
+
+### Fixed (firmware, user-visible)
+- **Four em dashes removed from the web UI**, in the footer credit and the two auto-brightness
+  labels (`src/web_html.h:59,74,75,77`), plus two in JS comments. `CLAUDE.md` bans em dashes in
+  human-facing prose and every shipped `.md` was already clean, but nobody had ever proofread the
+  UI strings, so they had been on screen since v2.30.0. This is the only reason `FIRMWARE_VERSION`
+  moves: `src/web_html.h` changed.
+- **The palette generator was reintroducing them.** `src/anim_palettes.h` carried seven em dashes,
+  and since it is generated and headed "DO NOT EDIT", fixing the file would have been undone by the
+  next run. Fixed the emitted template in `tools/gen_palettes.py` instead and regenerated. Verified
+  the palette data is byte-identical: the diff is 7 comment lines and zero color values.
+
+### Fixed
+- **The published repo could not compile.** `src/main.cpp:20` includes `anim_palettes.h`, but that
+  header was never added to the export manifest, so `github.com/Maestro8484/ChronoBloom` shipped a
+  source file with a missing dependency. Proven by cloning the public repo and building it:
+  `fatal error: anim_palettes.h: No such file or directory`. Added `src/anim_palettes.h` to the
+  manifest. Both variants now build from the exact published file set (8" 809,530 B, 15" 809,750 B,
+  61.8% flash, 0 warnings).
+- **A bare `pio run` built the wrong variant.** `default_envs` was `esp32c3_v3_15inch`, the
+  experimental 15" build, while every README command passes `-e esp32c3_v3_8inch` explicitly. Anyone
+  typing plain `pio run` got 96-pixel firmware with a separate center strip on GPIO20, which on an
+  8" build is a scrambled face and no error message. Now defaults to the 8".
+- **One uncommitted file could jam the whole export.** The manifest globbed
+  `ChronoBloom_8inch/v11/**` from the filesystem, not from git, so an untracked work-in-progress
+  `.3mf` sitting in that folder failed the export gate and blocked every publish. Replaced the glob
+  with the six explicit tracked filenames, which removes the failure mode by construction rather
+  than by remembering to tidy up.
+
+### Removed from the public export
+Excluded, not deleted. Every file still exists in the private repo and still works; they just stop
+shipping. All are recorded in the manifest's `exclude_assert` list so they cannot drift back in.
+- **The demo-reel production rig**, which is maintainer tooling with no value to a builder:
+  `demo_reel_designer.html`, `scripts/demo_reel_designer.bat`, `scripts/reel_server.py`, both
+  `DEMO_CAPTIONS` tracks, `DEMO_MODE.md`, and all three `tools/video/*.ps1` cutting scripts.
+  On-device **Demo Mode stays** — it is a button in the web UI that every user gets, so
+  `docs/FEATURES.md` now describes it in user terms instead of as a video-recording state machine.
+- **`ChronoBloom_QuickRef.docx`** — opened with "Built from scratch. Coded alone.", which
+  contradicts the NOTICE crediting Steve Manley's original and the README's own voice.
+- **`ChronoBloom_Compact_Function_Inventory.md` / `.docx`** — stated "v2.2.0, 139 functions" against
+  a current 2.31.1 with 233. No generator exists for it, so it is hand-maintained and 29 versions
+  stale. `docs/API.md` and `docs/ARCHITECTURE.md` cover the same ground.
+
+### Added
+- The annotated web UI screenshot is now actually used. It had been shipping into `docs/images/` at
+  727 KB while no document referenced it. New "The web UI" section in `README.md` embeds it.
+
+### Added: three new export gates, because the old failure was a doc, not a bug
+The 2026-07-12 audit recommended, verbatim, "clean-clone build passes BOTH variants" as a hard
+pre-publish gate. It was written into `docs/publish/qa-deep-2026-07-12-PUBLISH-PATCH.md` marked
+"owner applies manually", and never performed. Eleven days of a broken public repo followed. Prose
+does not run. `tools/publish/export_public.py` had five gates, all in code, all fail-closed, and all
+five did their job. The missing ones are now the sixth, seventh and eighth.
+
+- **Gate 6, em dashes in shipped prose.** Scans everything that ships, source files included,
+  because `web_html.h` is UI copy and docs get proofread while UI strings do not. Two files are
+  exempt through a new `em_dash_exempt` manifest key with the reasoning recorded next to it: the
+  historical changelog (rewriting shipped history to satisfy a later style rule would misrepresent
+  what those entries said) and `main.cpp` (about 170, all code comments, none user-visible). The
+  suffix list stays broad so a new file is scanned by default; exemption is an explicit entry, never
+  a silent default.
+- **Gate 7, flasher version match.** The flasher manifest's version must equal `FIRMWARE_VERSION`,
+  every binary it references must be in the export set, and no stale binary of another version may
+  ride along. This is the gate for the drift that had Pages serving 2.29.0 against a 2.31.1 source
+  tree with nothing tying the two numbers together.
+- **Gate 8, the export set must compile.** Materializes the export into a throwaway directory and
+  builds every `[env:...]` in the shipped `platformio.ini`, the way a stranger's clone would. Env
+  list is derived, not hardcoded, so a new variant is covered with no change here. Runs last because
+  it is the slow one, and skips if a cheaper gate already failed. `--no-build-check` exists and says
+  what skipping it cost last time.
+- **Verified by deliberately breaking it:** removing `src/anim_palettes.h` from the manifest and
+  re-running produced `EXPORT SET DOES NOT COMPILE` for both variants, exit 1, nothing staged. A
+  gate nobody has watched fail is a gate nobody should trust.
+
+### Fixed (tooling, found by testing the new gates)
+- **A gate failure could exit looking like success.** Gate messages quote file content, and printing
+  an arrow character out of `docs/CHANGELOG.md` raised `UnicodeEncodeError` on the default Windows
+  console codepage. That killed the process before `sys.exit(1)` ran, so a real failure surfaced as
+  a traceback with a misleading exit code. `stdout`/`stderr` are now reconfigured to UTF-8 with
+  replacement. Pre-existing; only surfaced because the new gate generated enough output to hit it.
+
+### Files changed
+`src/web_html.h`, `src/anim_palettes.h` (regenerated), `tools/gen_palettes.py`,
+`platformio.ini` (`FIRMWARE_VERSION` 2.31.1 -> 2.31.2, `default_envs` 15inch -> 8inch),
+`tools/publish/export_public.py`, `tools/publish/export_manifest.json`, `README.md`,
+`docs/FEATURES.md`, `docs/ANIMATIONS.md`, `docs/CHANGELOG.md`
+
+## [2.31.1] - 2026-07-28 (Mood palettes get radial hue travel)
+
+Data-only change: `tools/palettes/palettes.json` re-authored, `src/anim_palettes.h` regenerated by
+`tools/gen_palettes.py`. No firmware logic touched. Build-verified; **not yet observed on hardware**
+— the on-strip look is what decides these values, so expect a live-tuning pass.
+
+### Changed
+- **All four mood palettes now travel hue from ring to ring.** Every mood was previously a single
+  hue that only got lighter toward the center (Golden hour was amber on amber on amber), so a bloom
+  animation on any mood read as one flat wash — most visibly on nudges, where Golden hour is the
+  factory default and Bloom Ripple came out one red-orange no matter what. Each palette now steps
+  hue outward-to-inward while still brightening toward the core:
+  - Golden hour: red-orange rim → amber → gold → pale gold core (38° of hue travel)
+  - Moonlight: violet rim → periwinkle → ice blue → cool white core (77°)
+  - Dawn: rose rim → coral → peach → cream core (57°)
+  - Twilight: indigo rim → blue → sky → pale cyan core (55°)
+
+  Authored gamma-aware as before (`rings` = inverse-gamma of `target`); the `target` field in
+  `palettes.json` now records the intended on-strip appearance for every ring.
+
+## [2.31.0] - 2026-07-28 (Launch-audit fixes: the nudge story made true, first-run un-broken)
+
+Overnight implementation of the ultra launch audit's confirmed findings. Every change below is
+build-verified on both variants and the web UI was exercised against a mock device in a browser;
+none of it has been observed on hardware yet — flash and check before shipping it to a stranger.
+
+### Added
+- **Nudge escalation.** The second and later unacknowledged reminders play a second swell ~6s
+  after the first, so a nudge that went unnoticed asks twice. RAM-only counter; nothing persists.
+- **Button acknowledgment.** Pressing either clock button during a nudge (or within 15s after)
+  now reads as "seen it": it clears the escalation counter and restarts the interval. It no
+  longer adjusts the time — the old behavior corrupted the clock as the only physical response
+  to a reminder. Time adjustment works exactly as before outside the ack window.
+- **First-run time zone banner.** When no zone has ever been saved (new `tzConfigured` flag in
+  `/settings` JSON, backed by NVS), the web UI shows a banner with the browser's detected zone
+  and a one-tap apply. Dismissable; never returns once a zone is saved.
+- **Quick nudge control.** On/off + interval + save, in Quick controls, two taps from landing.
+  Preset buttons (Pomodoro 25m / Check-in 30m / Hourly) in the reminder section.
+- **Time-truth cue.** Until NTP lands or the user sets the time by hand, a short amber inner-ring
+  chase fires every 10s — "plausible but unconfirmed" is now visibly different from "set".
+  Respects the status-blips toggle. New `STATUS_TIME_UNSET` status color.
+- **Offline DST tick.** Local time is re-derived from the epoch once a minute while WiFi is down,
+  so a DST flip lands on time offline. Suppressed after a manual time set — offline, the user's
+  hands are the better truth.
+
+### Changed
+- **Factory reminder days: none → all seven.** daysMask 0 meant enable+save silently never fired —
+  the audit's top story-killer. Reminders still ship disabled; nothing fires unasked. The UI also
+  guards the same trap: enabling with zero days checked auto-selects all seven and says so.
+- **Start hour == end hour now means a 24-hour window** (was: silently never fires).
+- **Save saves everything.** The main Save button now collects reminder and animation-style
+  fields too; it used to silently revert unsaved edits in those sections on completion. The
+  sectional save buttons remain.
+- **Save/error feedback.** Every save path now shows a toast ("Saved" / "Could not reach the
+  clock"); fetch failures no longer fail silently.
+- **Portal timeouts.** Fresh-flash first boot: 10-minute provisioning window (was 2, shorter than
+  a stranger's join-the-AP fumble). Factory reset: 15 minutes (was forever — a reset clock hung
+  dead until provisioned; it now falls through to AP mode and an offline clock).
+- **Mobile usability.** 16px inputs (stops iOS focus auto-zoom), 42px touch targets, savebar wraps.
+- **Labels de-jargoned.** "Outer sec/min" → "Second/Minute hand", "Status" → "Wi-Fi status blips",
+  "Hourly bloom" → "Hour-top center bloom", GW/RSSI → gateway/signal. Page and title now say
+  ChronoBloom, not "ESP32 Ring Clock". POSIX TZ field hidden unless "Other" is picked.
+- **Reminder preview fix.** Previewing "Use quarter/half/hour animation" (modes 0-2) works; the
+  0-is-Off guard now applies only to the interval selects.
+
+### Hardened (same session, after a 7-agent adversarial review of the diff)
+- **Ack window redesigned.** The first cut re-armed the window on every acknowledgment, so
+  holding a button to adjust time got eaten as endless acks. The window now opens only at fire
+  time and closes on the first ack; the next press adjusts time normally. Signed-delta compare
+  makes a stale window harmless across millis() wrap.
+- **Escalation moved inside the day/hour window** (an edge-straddling repeat is dropped, never
+  played into quiet hours) and all reminder RAM state clears on disable, so nothing can strand
+  across a disable/re-enable.
+- **Portal classification fixed:** captive-portal/Improv-provisioned units (credentials only in
+  the WiFi-stack NVS) were misread as never-provisioned and would have sat 10 minutes in the
+  portal on every boot-before-router power blip; `getWiFiIsSaved()` now counts.
+- **Save refuses to run from a page that never finished loading** (would have posted browser
+  defaults over the deployed config). The daysMask auto-repair on the main Save is now visible
+  (checks the boxes, toasts) instead of silent. Quick nudge confirmation names the active hour
+  window, so an evening enable outside it doesn't read as broken. Timezone banner only
+  dismisses when the save landed; error toasts distinguish "clock rejected it" (shows the
+  reason) from "unreachable". Brisbane zone option added; delegated-chime previews explain
+  themselves when the chime is Off; checkboxes exempted from the 42px mobile rule.
+- Web NTP "Sync to internet" now lifts the manual-time override inside syncNow() itself, so
+  the offline DST tick resumes after any accepted network sync.
+
+### Verified
+- Both variants compile clean (8" 61.1% flash). Web UI reconstructed from PROGMEM: tags balance,
+  JS parses under node, and every new behavior (banner apply, quick save, 0-days guard, unified
+  Save payload, presets, toasts, the loaded-page save gate, window text, chime-off hint)
+  exercised against a mock device server in a real browser.
+- NOT yet verified on hardware: escalation timing, ack window feel, portal timeout fallthrough,
+  offline DST tick, amber time-unset cue.
+
+## [2.30.1] - 2026-07-27 (On-wall verdict fixes: ChronoBloom hand contrast + Sunflower export honored)
+
+The operator flashed 2.30.0 to both units and judged it on the wall — the real gate. Two failures,
+both fixed the same evening:
+
+### Changed
+- **ChronoBloom inner hour hand: magenta → periwinkle `#6eb9ff`.** Both hour-hand segments had been
+  the identical magenta since v2.4.8 ("unified for visual continuity"), so the middle/inner pair had
+  ZERO hue contrast — and the 2.22.1 gamma pipeline shifted that magenta's emit toward hot pink,
+  which is why the operator remembers the hands carrying "a tone of blue" that is now gone. The
+  periwinkle echoes the outer marks (theme identity), reads azure `(40,126,255)` against the warm
+  inner face (164 deg separation, 8.9x luminance pop), and sits 102 deg from the magenta middle
+  hand. Emit-verified through the exact pipeline. `defaults()` updated to match (defaults ARE the
+  ChronoBloom theme).
+- **ChronoBloom face scales 55/55 → 39/39** — the same D/255 lift rebalance already applied to
+  Ember/Lotus, restoring the lifted crest to the canonical 55-equivalent luminance so the middle
+  hand keeps its authored 4.7x pop instead of the 3.3x the 2.30.0 lift left it.
+- **Sunflower petalDepth 40 → 0.** The theme chip was forcing petal texture onto the operator's
+  hardware-tuned export (whose exported petalMode was OFF): depth 40's lift pushed the huge face
+  scales (181/244) to near-max and drowned the dark-red silhouette hands — observed live on the 15"
+  wall clock as "contrast between hour hands is poorer." The export is now honored verbatim; the
+  depth slider remains for anyone who wants texture on it.
+
+### Deployed
+- OTA to both units the same evening (15" wall clock first — it is the display the verdict came
+  from — then the 8"), plus a one-time `petalDepth=0` settings restore on the 15" to undo the value
+  the 2.30.0 chip-apply had already persisted into its EEPROM.
+
+## [2.30.0] - 2026-07-27 (Petal depth that actually reads + two honest brightness sliders + capture pre-roll)
+
+What the 8" demo-reel shoot needed. "Scalloped" is gone as a term: it reads as a cooking technique,
+not an amount of shading. The feature is **Petal depth** everywhere now -- firmware field, web UI
+label, theme key, narration. And the three-slider auto-brightness stack ("Darkest / Brightest /
+Overall dimness") collapses to the two sliders that mean something.
+
+### Changed
+- **Petal shading applies to all three rings, from one shared profile.** Before, the outer 60 had
+  none at all and the two inner rings used different profiles -- middle 24 a `[70%,100%,70%]` triangle,
+  inner 12 a `[100%,60%]` every-other-LED alternation that reads as dither rather than petals. That is
+  the "not all rings convey it equally" complaint, and it was literally true. Now every ring runs the
+  same crest-to-seam profile off `PETAL_SHADE_*` + `petalFactor()`, so at any depth all three sit at the
+  identical seam/crest ratio (verified by simulation at depths 0/30/45/60/70/100).
+  - outer 60: 12 petals x 5 LEDs, crest **on** the 5-minute marker. **Markers are never shaded**, so the
+    hour marks stay crisp and gain contrast against the shaded filler either side of them.
+  - middle 24: 8 petals x 3 LEDs, crest at `i%3==1` (the v17 phase, unchanged).
+  - inner 12: **4 petals x 3 LEDs** (was 6 x 2). Same cell as the middle ring -- identical profile is what
+    makes them read equally -- and phased so its crests land on the same radial spokes as the middle
+    ring's (middle `2i+1` faces inner `i`). Result: four strong spokes at 12/3/6/9 with finer petals
+    filling in between.
+- **`petalMode` (0/1) → `petalDepth` (0-100), SETTINGS_VERSION 18→19.** Same byte, same offset, no
+  struct growth. Depth 0 makes `petalPixel()` collapse to the plain flat fill, so the old solid-fill
+  branch is gone entirely -- one render path instead of two to keep in sync. `PETAL_SHADE_MAX = 170`
+  caps a full-depth seam cut: deep, never black.
+- **The contrast math got a real fix, not just a knob** (`petalPixel()`, replacing the first-pass
+  post-gamma multiply). Measured on ChronoBloom's middle face at day brightness 44, the v17-style cut
+  produced a crest of (6,0,4) against a seam of (4,0,2) -- quantization noise, not a petal, which is
+  why the default theme "really has no contrasting petals." Two changes, both simulated end-to-end
+  through the exact emit pipeline before landing:
+  - **The seam shades the COLOR before gamma** -- a linear-light cut reads at roughly half its size
+    perceptually; pre-gamma it reads at face value. The level multiply itself stays post-gamma, so
+    this does NOT reintroduce the v2.22.0 pre-gamma-level crush (only the deliberate petal shading
+    term moves).
+  - **The crest is lifted by 255/D** (D = deepest seam factor), so depth adds contrast instead of only
+    ever dimming the face: the crest gains what the seam loses.
+  - Net effect on ChronoBloom's middle face, perceptual (sRGB) channel delta crest-to-seam: 11→18 at
+    global brightness 44, 12→29 at 128, 17→39 at 255. Roughly 2.3x, and it scales with depth.
+
+- **Auto-brightness is two sliders now: Darkest and Brightest.** The third slider ("Overall dimness",
+  the v18 gain) is retired -- its label read backwards (lower = dimmer), and mathematically it
+  multiplied the lux curve BEFORE the min/max clamp, so it could shove the whole response under the
+  Darkest floor and pin the face there with the sensor effectively ignored. The new response
+  (`autoSpanMap()`, one shared definition used by the renderer, `/diag`, and the serial status log)
+  stretches the sensor curve's native 15..255 output across exactly
+  [Darkest..Brightest]: pitch black lands ON the Darkest slider, full daylight ON the Brightest
+  slider, and neither slider can ever be silently defeated. "Dim the whole clock" is now simply
+  "pull Brightest down."
+  - **Migration folds the stored gain into Brightest** so no deployed unit's daylight peak jumps:
+    old peak = clamp(255 x gain%, min, max) becomes the new max exactly. Simulated against every
+    real config (factory 60%, operator 51%, edge 0%/100%) across the full curve: endpoints exact,
+    worst mid-curve deviation 5 counts of 255. Factory default Brightest becomes 153 -- the same
+    daylight peak the old defaults (max 255 x gain 60%) actually produced.
+  - The gain byte stays in the struct as `reservedGain` (zeroed) so the EEPROM layout is untouched;
+    `autoBrightnessGain` is gone from the web UI, `POST /settings`, `GET /settings`, and `/diag`.
+
+### Added
+- **"Petal depth" slider (0-100) in Ring colors**, replacing the "Petal texture" checkbox, and moved
+  below the last ring row since it is no longer a rings-1-&-2 setting. Live WYSIWYG preview mirrors
+  `petalPixel()` -- pre-gamma tint, truncating lift, same integer math -- and was verified to emit
+  **byte-identical hex** to a Python simulation of the firmware pipeline at depths 0/45/100 on all
+  three rings, crest and seam and the outer ring's edge shade alike.
+- **Per-theme petal depth**, replacing the on/off flag: ChronoBloom 45, Moonflower 60, Cherry Blossom
+  60, Ember Dahlia 70, Lotus Pond 65, Sunflower 40, Bird of Paradise 50. Chosen against each theme's
+  own fill brightness -- bright/pale fills carry more shading before the seam muddies; dark fills need
+  less. ChronoBloom and Sunflower were previously OFF and now carry a deliberately gentle amount.
+- **Full-roster beauty audit through the emit pipeline** (all 7 themes x 12 emitted swatches x 2
+  brightness regimes, scored against the project's own design rules: hand/face separation, 45-60
+  face band, saturation floor, center-warmest, harmony template, channel-quantization health).
+  Findings: the roster is sound under its own templates -- the analogous themes' sub-60-degree
+  hand/face hue seps are their declared designs carried by luminance hierarchy, Lotus's soft aqua
+  marks are the 2.24.0 author's deliberate choice, and Sunflower's inverted hierarchy is an
+  operator hardware-tuned export (untouched on principle). One real defect found and fixed: **the
+  B+C crest lift broke the "dim petal wash, bright stamen" hierarchy on three rings** -- Ember
+  Dahlia's inner hand fell to 0.6x its lifted face crest (the red hand drowned in the gold corona),
+  Ember middle to 1.7x, Lotus middle to 1.2x. Fixed by rebalancing those face scales so the LIFTED
+  crest lands exactly at the 2.24.0-authored luminance (`scale_new = scale_old x D/255`): Ember
+  middleFaceScale 55→29, innerFaceScale 60→32; Lotus middleFaceScale 50→28. Verified restored to
+  the authored ratios to one decimal (3.2/1.2 vs 3.1/1.2; 2.2 vs 2.1). The themes.json design-rule
+  comment now states the 45-60 face band applies to the lifted crest (`scale x 255/D`), so a stored
+  sub-45 scale under high depth is legitimate. Known and accepted: at day brightness 44, seam
+  bottoms quantize small channels to 1-2 counts (hue purifies toward the dominant channel) -- an
+  inherent 8-bit floor, invisible on the diffuser at those counts and gone at daylight peak.
+  Proof sheet with every emitted swatch delivered to the operator; on-wall eye check remains the
+  final gate per FLORAL_COLOR_DESIGN's own guardrail.
+- **Demo-reel capture pre-roll.** `POST /demo/start?delay=<seconds>` (0-60) holds the clock **fully
+  dark** before the reel opens, so a camera can be rolling and settled and frame one is a fade-up out
+  of clean black. Web UI: a "Pre-roll" seconds box next to the Demo button (default 5, remembered in
+  localStorage), with a live countdown in the status line. `/demo/status` gains `preroll` +
+  `preroll_ms`; `/demo/overlay` treats pre-roll as "not running" and stays blank, so no subtitle is
+  ever composited onto the black lead-in. Handled on-device rather than by a browser timer so the
+  countdown survives the tab being closed or slept.
+
+### Fixed
+- **`tools/themes/themes.json` had silently drifted from what ships.** It declares itself the single
+  source of truth and `tools/gen_themes.py` stamps it into both `src/web_html.h` and
+  `docs/publish/demo_reel_designer.html` -- but it still held the **pre-2.24.0** colors for Moonflower,
+  Cherry Blossom, Ember Dahlia and Lotus Pond, and never carried `petalMode` at all. Running the
+  generator would have silently reverted the shipped botanical palettes (e.g. cherry ring-3 back from
+  burgundy `#662d3f` to `#64143c`). Rebuilt from the shipped values, verified field-by-field that no
+  colour or level changed.
+- **Sunflower and Bird of Paradise are real theme entries again.** They were hand-appended JS lines in
+  `web_html.h`, so they existed in the clock's own UI but were **absent from the demo reel designer's
+  roster entirely**. Both now live in `themes.json`; the two hand-appended lines are gone and all seven
+  themes come from one generated line in each consumer.
+
+### Migration
+`SETTINGS_VERSION` 18→19 changes no field offsets and adds no bytes -- two bytes change MEANING.
+The petal byte: a stored `1` read back as a v19 depth would mean "1% depth", i.e. silently off, so
+`widenPetalFlag()` maps the old flag onto the default depth in the v17 and v18 branches; units at v15
+and v16 never had the feature and are seeded flat (0). The gain byte: folded into `maxAutoBrightness`
+in the v18 branch (see above) and zeroed; v15-v17 units never had a gain, so their max is already
+their true peak and only the byte is zeroed. No settings wipe on any deployed unit.
+
+### Files changed
+- `src/main.cpp` -- `ClockSettings.petalMode` → `petalDepth`, `autoBrightnessGain` → `reservedGain`
+  (retired); new `PETAL_SHADE_MAX` / `PETAL_DEPTH_DEFAULT` / `PETAL_SHADE_5` / `PETAL_SHADE_3` /
+  `petalFactor()` / `petalPixel()` / `widenPetalFlag()` / `autoSpanMap()`; `SETTINGS_VERSION` 18→19;
+  `SettingsStore::begin()` (v15/v16/v17 branches updated, new v18 branch with the gain fold),
+  `defaults()` (Brightest 153), `sanitize()`; `ClockRenderer::renderFace()` (one precomputed-pixel
+  shaded path across all three rings), `effectiveBrightness()` (span map); `/diag` and
+  `logRuntimeStatus()` share `autoSpanMap()` and drop the gain field; `WebUi` settings POST parser +
+  `settingsJson()`; `DemoMode::start()` / `stop()` / `loop()` / `rendersFaceNow()` / `statusJson()` +
+  `preRollEndMs_`; `setupDemoModeRoutes()` (`?delay=`).
+- `src/web_html.h` -- "Petal texture" checkbox → "Petal depth" slider (moved below the last ring row);
+  `PETAL_S5` / `PETAL_S3` / `petalFactorJS()` / `petalTintJS()`; `draw()` B+C shading on all three
+  rings; "Overall dimness" label + gain slider removed, auto helper text rewritten; `bindLive()`,
+  `collectFaceParams()`, `saveBrightness()`, `loadSettings()`, `applyTheme()`; demo Pre-roll input,
+  `startDemo()`, `updateDemoStatus()`; `OVERLAY_HTML` stays blank during pre-roll; regenerated
+  `THEMES` line.
+- `tools/themes/themes.json` -- rebuilt from shipped values, `petalMode` → per-theme `petalDepth`,
+  sunflower + birdofparadise folded in, `_comment` palette names refreshed to the v2.27.0 set.
+- `docs/publish/demo_reel_designer.html` -- regenerated `THEMES` line (now carries all seven themes).
+- `platformio.ini` -- `FIRMWARE_VERSION` 2.29.0 → 2.30.0.
+- `scripts/webui_mock_server.py`, `scripts/walkthrough/local_serve.py` -- mock `/settings` carries `petalDepth`.
+- `scripts/walkthrough/callouts.json`, `narration.json`, `SCRIPT_DRAFT.md` -- `#petalMode` selector and
+  "scalloped" wording replaced (the stale selector would have made the walkthrough miss the control).
+- `docs/publish/DEMO_MODE.md` -- `?delay=` pre-roll, `preroll` / `preroll_ms` status fields.
+- `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md` -- regenerated.
+
+### Verified / NOT verified
+- **Verified:** clean warning-free builds, BOTH envs (`esp32c3_v3_8inch` + `esp32c3_v3_15inch`,
+  61.1% flash). Petal math simulated end-to-end through the exact emit pipeline (truncating integer
+  math, gamma LUT, sRGB re-encode): profile equality across rings, marker exemption, spoke alignment,
+  depth-0 collapse to flat fill, and the perceptual-contrast numbers quoted above. Web UI driven live
+  in a browser against `scripts/webui_mock_server.py`: zero console errors; preview emits
+  **byte-identical hex** to the firmware simulation at depths 0/45/100 (mid/inner crest+seam, outer
+  seam and edge shade); gain slider and label gone; `collectFaceParams()` / `saveBrightness()` /
+  `loadSettings()` all exercised without throwing after the element removal (the first patch left a
+  `qs('autoBrightnessGain').value` reference in `collectFaceParams` that WOULD have broken face saves
+  -- caught by running the page, not by reading it). Gain-fold migration simulated across the full
+  curve for factory 60% / operator 51% / 0% / 100%: endpoints exact, worst deviation 5/255. Pre-roll
+  countdown + status lines render; `?delay=` clamps 0-60 both sides. Theme round-trip vs
+  `git show HEAD`: no pre-existing value changed. `tools/theme_emit_check.py` PASS.
+- **NOT verified on hardware.** Nothing in this release has been flashed or seen on LEDs. The
+  per-theme depth values and the B+C look are authored judgements; the operator's eye on the 8" is
+  the real check, and the sliders exist precisely so both can be retuned live. The auto-brightness
+  span map has not been watched against a real lux sweep.
+
 ## [Docs] - 2026-07-17 (Launch item 6: README becomes a replication document. No firmware change; FIRMWARE_VERSION stays 2.29.0)
 
 ### Changed

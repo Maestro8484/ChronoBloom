@@ -1,4 +1,4 @@
-# ChronoBloom ESP32-C3 — Troubleshooting Guide
+# ChronoBloom ESP32-C3 -- Troubleshooting Guide
 
 ## Common Issues & Solutions
 
@@ -13,7 +13,7 @@
 - Web UI still responds but nothing is visible
 - Reloading the page shows brightness value of 0
 
-**Cause**: `dayBrightness=0` (or `nightBrightness=0`) was submitted. In `autoBrightnessMode=0` (manual), `dayBrightness` is passed directly to the LED strip — zero means off. Pre-v2.1.1 firmware had no floor on this field.
+**Cause**: `dayBrightness=0` (or `nightBrightness=0`) was submitted. In `autoBrightnessMode=0` (manual), `dayBrightness` is passed directly to the LED strip -- zero means off. Pre-v2.1.1 firmware had no floor on this field.
 
 **Fix (v2.1.1+)**: `sanitize()` now floors `dayBrightness < 5` to 44 and `nightBrightness < 1` to 5. Upgrade firmware and re-save any settings to recover.
 
@@ -43,7 +43,7 @@ via `sendContent_P()`. JSON handlers use `snprintf` into stack buffers. No heap
 allocation occurs at page-load time. Confirmed free heap after fix: **236KB**.
 
 **If still crashing after flashing v2.1.0**: Check `/diag` for `free_heap`. If below
-~80KB, another allocation source is the culprit — check for long-running String builds
+~80KB, another allocation source is the culprit -- check for long-running String builds
 elsewhere in the loop.
 
 ---
@@ -111,7 +111,7 @@ Serial.println(mdnsEnabled_ ? "YES" : "NO");
 
 > **Resolved v2.0.6**: Buttons moved to GPIO5(UP)/GPIO9(DOWN) with polled reads. Original root cause documented below for reference.
 
-**Symptoms (historical — ISR-based buttons on GPIO3/GPIO4)**:
+**Symptoms (historical -- ISR-based buttons on GPIO3/GPIO4)**:
 - Time jumps backward by 5 minutes without physical button press
 - Most common when USB cable connected
 - Less common when powered via 5V-only supply
@@ -198,9 +198,9 @@ Should print `1 1` when not pressed, `0 1` or `1 0` when single button pressed.
 
 **Checks**:
 1. **Power supply**: Verify 5V present at LED strip VCC/GND
-2. **Data connection**: Check 300Ω resistor inline with GPIO10 → LED DIN
+2. **Data connection**: Check 300 ohm resistor inline with GPIO10 -> LED DIN
 3. **Strip polarity**: Ensure VCC/GND not swapped (can damage LEDs)
-4. **Index 0 (variant-dependent)**: On the **15" variant**, physical index 0 is the first active ring LED (`SACRIFICIAL_PIXEL_ENABLED=0`, `RING_PIXEL_OFFSET=0`). On the **8" variant**, physical index 0 is the sacrificial pixel used for 3.3V→5V level shifting — the first active LED is index 1 (`SACRIFICIAL_PIXEL_ENABLED=1`, `RING_PIXEL_OFFSET=1`). If upgrading the 15" from a pre-v2.0.2 build, rewire GPIO10 data line directly to DIN of first ring LED.
+4. **Index 0**: On both shipped variants, physical index 0 is the first active ring LED (`SACRIFICIAL_PIXEL_ENABLED=0`, `RING_PIXEL_OFFSET=0`). A vestigial "sacrificial pixel" option exists for a 98-LED chain (index 0 dark, first active LED at index 1) but ships disabled -- see the `[led_chain]` note in `platformio.ini`. If upgrading the 15" from a pre-v2.0.2 build, rewire GPIO10 data line directly to DIN of first ring LED.
 
 **Serial output check**:
 ```
@@ -320,7 +320,7 @@ Expected output: `Found device at 0x10`
 ```cpp
 Serial.print("Lux: ");
 Serial.print(luxSensor.lux());
-Serial.print(" → Brightness: ");
+Serial.print(" -> Brightness: ");
 Serial.println(luxSensor.autoBrightness());
 ```
 
@@ -380,7 +380,7 @@ Serial.println(SETTINGS_VERSION);
 
 **Checks**:
 1. Hard refresh browser (Ctrl+Shift+R) to clear cached JavaScript
-2. Check browser console for JavaScript errors (F12 → Console tab)
+2. Check browser console for JavaScript errors (F12 -> Console tab)
 3. Verify `/settings` POST endpoint responding (Network tab in F12)
 
 **Test endpoint directly**:
@@ -427,7 +427,7 @@ Should return JSON: `{"hour":14,"minute":30,"second":45,...}`
 ```powershell
 pio run -e esp32c3_v3_8inch -t upload --upload-port COM3
 ```
-4. Windows: Check Device Manager → Ports (COM & LPT)
+4. Windows: Check Device Manager -> Ports (COM & LPT)
 5. Linux: Check `ls /dev/ttyUSB*` or `ls /dev/ttyACM*`
 
 ---
@@ -595,7 +595,7 @@ if (luxOverrideActive_) {
 
 **If buttons still control time**:
 1. Verify demo is actually running (`/demo/status` shows `"active": true`)
-2. Check `ButtonInput::poll()` respects demo state — should consume button events without acting on them
+2. Check `ButtonInput::poll()` respects demo state -- should consume button events without acting on them
 3. Confirm buttons weren't pressed before demo started (state machine may have pending press)
 
 ---
@@ -643,15 +643,15 @@ POST http://192.168.1.XXX/syncNtp
 ## Hardware Damage Prevention
 
 ### Precautions
-1. **NEVER power LEDs from 3.3V** — Will damage ESP32 voltage regulator
-2. **Check polarity before connecting** — Reversed VCC/GND can destroy LED strip
-3. **Use 300Ω resistor on data line** — Prevents voltage spikes from damaging first LED
-4. **Limit initial brightness** — Test with low brightness before full power
-5. **Proper power supply sizing** — 5V 3A minimum, 5A recommended
+1. **NEVER power LEDs from 3.3V** -- Will damage ESP32 voltage regulator
+2. **Check polarity before connecting** -- Reversed VCC/GND can destroy LED strip
+3. **Use 300 ohm resistor on data line** -- Prevents voltage spikes from damaging first LED
+4. **Limit initial brightness** -- Test with low brightness before full power
+5. **Proper power supply sizing** -- 5V 2A is enough: firmware caps total LED draw at 1800mA (`MAX_LED_MILLIAMPS`) by dimming any frame that would exceed it
 
 ### If LEDs won't light after assembly
-1. Check LED strip not damaged during fabrication (measure resistance VCC-GND, should be >1kΩ)
-2. Verify data direction (DIN → DOUT, chain must be correct direction)
+1. Check LED strip not damaged during fabrication (measure resistance VCC-GND, should be >1k ohm)
+2. Verify data direction (DIN -> DOUT, chain must be correct direction)
 3. Test with single LED first (disconnect strip, connect one LED directly)
 
 ---
@@ -711,7 +711,7 @@ pio device list
 - Device tries to connect to hardcoded SSID instead
 
 **Fixes**:
-1. Check if WiFiManager has saved credentials from previous session — portal only appears on true first boot
+1. Check if WiFiManager has saved credentials from previous session -- portal only appears on true first boot
 2. Force reset: uncomment `wm.resetSettings();` in `setupWiFi()` function, rebuild, and flash
 3. Verify ENABLE_WIFI_UI is defined in build flags
 
@@ -719,15 +719,15 @@ pio device list
 
 ## OTA (Over-The-Air) Updates
 
-OTA is the normal update path — no USB cable required after initial flash.
+OTA is the normal update path -- no USB cable required after initial flash.
 
-**Preferred method — Web UI**:
+**Preferred method -- Web UI**:
 1. Build in VS Code / PlatformIO
 2. Open `http://esp32c3-v3-8inch.local/update`
 3. Select `.pio/build/esp32c3_v3_8inch/firmware.bin` and upload
 4. Device reboots automatically on success
 
-**Alternative — PlatformIO espota** (default upload protocol):
+**Alternative -- PlatformIO espota** (default upload protocol):
 ```powershell
 pio run -e esp32c3_v3_8inch -t upload
 ```
@@ -753,13 +753,13 @@ pio run -e esp32c3_v3_8inch -t upload --upload-protocol esptool --upload-port CO
 **Symptoms**: upload starts (blue animation), then device reboots before completion
 
 **Possible causes**:
-- WiFi instability — move device closer to router
-- Software watchdog fired (10s window) — should auto-recover on reboot
+- WiFi instability -- move device closer to router
+- Software watchdog fired (10s window) -- should auto-recover on reboot
 
 ---
 
 ### Check documentation
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Codebase structure
-- [HARDWARE.md](HARDWARE.md) — Pin mappings and specs
-- [FEATURES.md](FEATURES.md) — Current feature list
-- [API.md](API.md) — Web endpoints and settings structure
+- [ARCHITECTURE.md](ARCHITECTURE.md) -- Codebase structure
+- [HARDWARE.md](HARDWARE.md) -- Pin mappings and specs
+- [FEATURES.md](FEATURES.md) -- Current feature list
+- [API.md](API.md) -- Web endpoints and settings structure
