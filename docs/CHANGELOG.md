@@ -29,8 +29,10 @@ A one-LED rotation would mean firmware geometry and real wiring disagree.
 ### Added
 - **A plain-English write-up of the level-shifting problem**, in `src/main.cpp` above the LED
   geometry constants. Explains why a 3.3 V board driving 5 V WS2812Bs is marginal by design, how a
-  spare first LED works around it, what it does **not** fix (the run between the board and the
-  first LED), the symptom list that points at logic levels rather than a dead LED, and the
+  spare first LED works around it, why siting it **at the board beside the 5 V rail** is the whole
+  mechanism (it shortens the fragile 3.3 V stretch to almost nothing and hands the long run to the
+  rings a clean 5 V signal, so it buys data-line distance as well as reliability), the symptom list
+  that points at logic levels rather than a dead LED, and the
   counter-intuitive case where a truer 5 V supply breaks a chain that worked on a sagging one.
   `docs/HARDWARE.md` and `docs/TROUBLESHOOTING.md` carry shorter versions.
 

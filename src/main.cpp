@@ -105,16 +105,26 @@ using ClockWebServer = WebServer;
 // supply lowers it. If a strip worked on a weak supply and started glitching on
 // a good one, this is why, and the answer is a level shifter, not a worse PSU.
 //
-// What it does NOT do: it does not extend how far the data can travel. The run
-// from the board to the FIRST LED is the fragile part, and a sacrificial pixel
-// sits at the far end of that run, so it cannot help it. Keep that first hop
-// short (under about 30 cm / 12 in), use one data wire with a ground running
-// alongside it, and put a resistor of roughly 330-470 ohms in the data line at
-// the board end to soften the signal edge and stop it reflecting back.
+// Placement is the whole trick, and it is what makes this a distance fix too.
+// Put the sacrificial LED right at the board, beside the 5 V rail. The weak
+// 3.3 V signal then only has to survive a couple of centimetres before it is
+// re-transmitted as a clean, full-swing 5 V one, and it is that strong signal
+// that makes the long run out to the rings. You have not boosted the far end;
+// you have shrunk the fragile part to almost nothing and made everything after
+// it robust. Same reasoning as a proper buffer chip: it belongs at the board
+// end, not out at the strip.
 //
-// The proper fix, if you need one: a 74AHCT125 buffer chip. It is a purpose-made
-// level shifter, costs well under a pound, and does the job the sacrificial LED
-// was improvising. It is what to reach for if a long run misbehaves.
+// Put it at the far end instead and you get nothing, because the marginal
+// signal has already made the whole journey by the time it arrives.
+//
+// Worth doing either way: run the data wire with a ground alongside it, and fit
+// a resistor of roughly 330-470 ohms in the data line at the board end to soften
+// the signal edge and stop it reflecting back down the wire.
+//
+// The purpose-built version of the same idea: a 74AHCT125 buffer chip. It is a
+// real level shifter, costs well under a pound, sits in the same place for the
+// same reason, and does not cost you an LED. That is what to reach for if a long
+// run misbehaves.
 // ---------------------------------------------------------------------------
 
 #ifndef ENABLE_WIFI_UI

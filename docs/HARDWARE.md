@@ -28,14 +28,21 @@ to the next one. The fix is replacing that one pixel, not the whole ring.
 > 2026-08-01, along with the firmware support for it.** All builds are now the
 > plain 97-LED chain.
 >
+> **Placement is the point.** The sacrificial LED goes right at the board, beside
+> the 5 V rail, so the weak 3.3 V signal only travels a couple of centimetres
+> before being re-sent as a clean full-swing 5 V one -- and it is that strong
+> signal which then makes the long run out to the rings. So it buys data-line
+> distance as well as reliability: not by boosting the far end, but by shrinking
+> the fragile stretch to almost nothing. Put it at the far end instead and it
+> achieves nothing, because the marginal signal has already made the trip.
+>
 > It is still worth understanding, because it explains a family of "first LED
 > flickers", "random sparkle", "works cold, glitches warm" faults -- and one
 > genuinely counter-intuitive case where a *better* 5 V supply makes things worse,
 > because the LED's threshold scales with its supply voltage. `src/main.cpp` has
 > the full plain-English write-up above the LED geometry constants, including the
-> symptom list and what the trick does *not* fix (it does nothing for the run
-> between the board and the first LED). If a long data run misbehaves, a
-> 74AHCT125 buffer is the proper fix.
+> symptom list. A 74AHCT125 buffer is the purpose-built version of the same idea,
+> fitted in the same place for the same reason, and is what to use on a long run.
 
 **15" Clock (esp32c3_v3_15inch)**:
 - Main strip: 96 LEDs (rings only, physical indexes 0-95)
