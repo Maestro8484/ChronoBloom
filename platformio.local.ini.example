@@ -14,14 +14,12 @@ wifi_flags_15inch =
 ; [env:esp32c3_v3_8inch]
 ; upload_port = COM6
 
-; Optional override: sacrificial first pixel on the 8" chain (vestigial, see
-; the [led_chain] note in platformio.ini). Only enable this if your build
-; physically has an extra dark WS2812B spliced in ahead of the rings.
-; Replicable builds do not need it. Uncomment to enable:
+; Optional override: LED chain geometry, if your build differs from the standard
+; 97-LED 8" chain (60 + 24 + 12 rings, plus one centre pixel). Most people never
+; need this. Example - a chain with one extra unused LED at the front, which
+; shifts everything along by one:
 ; [led_chain]
 ; chain_flags_8inch =
 ;   -D CLOCK_PIXEL_COUNT=98
 ;   -D CENTER_PIXEL_INDEX=97
 ;   -D RING_PIXEL_OFFSET=1
-;   -D SACRIFICIAL_PIXEL_ENABLED=1
-;   -D SACRIFICIAL_PIXEL_INDEX=0

@@ -1,42 +1,23 @@
 @echo off
-REM Build and OTA-upload ChronoBloom firmware to the 8" clock.
-REM Usage: double-click, or run from any directory.
+REM Build and send new firmware to the 8 inch ChronoBloom, over WiFi.
+REM Double-click this. No arguments needed - it finds the clock for you.
+REM
+REM It shows you WHICH board it found and asks before writing anything. If more
+REM than one 8 inch board is on the network, it lists them and lets you pick.
+REM
+REM To skip the search and say where the clock is:
+REM   upload_8inch.bat <address>
+REM   upload_8inch.bat myclock.local
+REM
+REM It deliberately does not default to esp32c3-v3-8inch.local. Every board built
+REM from the 8 inch recipe answers to that name, so once you own two, the name
+REM belongs to whichever one replied first - and you can flash the wrong board.
 
 setlocal
-set REPO_ROOT=%~dp0..
-set ENV_NAME=esp32c3_v3_8inch
-set HOSTNAME=esp32c3-v3-8inch.local
-set FIRMWARE_BIN=%REPO_ROOT%\.pio\build\%ENV_NAME%\firmware.bin
-
-echo ==========================================================
-echo  ChronoBloom - 8inch build + OTA upload
-echo ==========================================================
-
-cd /d "%REPO_ROOT%"
-
-echo.
-echo [1/2] Building %ENV_NAME% ...
-pio run -e %ENV_NAME%
-if errorlevel 1 (
-    echo.
-    echo BUILD FAILED - aborting upload.
-    pause
-    exit /b 1
+if "%~1"=="" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0upload_8inch.ps1"
+) else (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0upload_8inch.ps1" -Target %1
 )
-
-echo.
-echo [2/2] Uploading to http://%HOSTNAME%/update ...
-curl -f -F "image=@%FIRMWARE_BIN%" http://%HOSTNAME%/update
-if errorlevel 1 (
-    echo.
-    echo OTA UPLOAD FAILED.
-    echo   - Is the clock powered on and connected to WiFi?
-    echo   - Try browsing to http://%HOSTNAME%/update manually.
-    echo   - USB fallback: pio run -e %ENV_NAME% -t upload --upload-protocol esptool
-    pause
-    exit /b 1
-)
-
-echo.
-echo Done. 8inch clock updated.
+echo(
 pause

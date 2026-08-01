@@ -15,20 +15,27 @@
 - Center pixel: physical index 96 (last in chain)
 - Data line: GPIO10 -> 300 ohm resistor (optional) -> DIN of the outer ring
 
-> **Sacrificial pixel (vestigial, disabled by default).** The firmware supports
-> an optional extra WS2812B ahead of the rings that stays dark and re-drives
-> the 3.3V data line at 5V logic (`SACRIFICIAL_PIXEL_ENABLED`, plus a 98-LED /
-> offset-1 geometry). The original prototype has one spliced in as a leftover
-> from early signal troubleshooting; it proved unnecessary and remains only
-> because removing it wasn't worth the soldering. Replicable builds should
-> leave it disabled. If you genuinely need level shifting on a long data run,
-> use a 74AHCT125 instead. Enable via a `[led_chain]` override in
-> `platformio.local.ini` (see `platformio.local.ini.example`).
+Physical index 0 is a working ring LED. If it dies, everything after it goes dark
+too -- a known WS2812B property, because each pixel reads the data and re-sends it
+to the next one. The fix is replacing that one pixel, not the whole ring.
 
-The public build ships with `SACRIFICIAL_PIXEL_ENABLED=0`, so the first LED of the
-chain is a working ring pixel. If that first LED dies, the whole chain after it goes
-dark -- a known WS2812B property (each pixel re-drives data for the next). The fix
-is replacing that one pixel, not the whole ring.
+> **Note on "sacrificial" first pixels.** Some WS2812B builds put an extra LED
+> ahead of the rings, keep it permanently dark, and use it purely to clean up the
+> data signal: the ESP32-C3 drives its data pin at 3.3 V, the LEDs want about
+> 3.5 V to read a reliable "1" off a 5 V supply, and the first LED re-sends the
+> signal at its own full 5 V for everything behind it. ChronoBloom's original 8"
+> prototype carried one from early signal troubleshooting. **It was removed on
+> 2026-08-01, along with the firmware support for it.** All builds are now the
+> plain 97-LED chain.
+>
+> It is still worth understanding, because it explains a family of "first LED
+> flickers", "random sparkle", "works cold, glitches warm" faults -- and one
+> genuinely counter-intuitive case where a *better* 5 V supply makes things worse,
+> because the LED's threshold scales with its supply voltage. `src/main.cpp` has
+> the full plain-English write-up above the LED geometry constants, including the
+> symptom list and what the trick does *not* fix (it does nothing for the run
+> between the board and the first LED). If a long data run misbehaves, a
+> 74AHCT125 buffer is the proper fix.
 
 **15" Clock (esp32c3_v3_15inch)**:
 - Main strip: 96 LEDs (rings only, physical indexes 0-95)
@@ -167,8 +174,8 @@ A 5V 2A phone charger is enough. The firmware caps total LED draw at 1800mA (`MA
 
 ### Ring Config (main.cpp)
 ```cpp
-// Both variants default to RING_PIXEL_OFFSET = 0.
-// Vestigial sacrificial-pixel override (local build only): offset = 1.
+// Both variants use RING_PIXEL_OFFSET = 0.
+// Raise it only if your chain has unused LEDs before the outer ring.
 constexpr RingConfig RING_OUTER_60  = {60, RING_PIXEL_OFFSET,      true};  // 60 LEDs
 constexpr RingConfig RING_MIDDLE_24 = {24, RING_PIXEL_OFFSET + 60, true};  // 24 LEDs
 constexpr RingConfig RING_INNER_12  = {12, RING_PIXEL_OFFSET + 84, true};  // 12 LEDs
@@ -180,9 +187,10 @@ constexpr RingConfig RING_INNER_12  = {12, RING_PIXEL_OFFSET + 84, true};  // 12
 - **Physical strip indexes 84-95**: Inner ring (hours), logical 0-11
 - **Physical strip index 96**: Center pixel
 
-> With the vestigial sacrificial-pixel override enabled (98-LED chain), the
-> dark sacrificial WS2812B sits at physical index 0 and everything above
-> shifts up by one (rings 1-96, center 97, `RING_PIXEL_OFFSET=1`).
+> If a chain ever carries unused LEDs ahead of the outer ring, raise
+> `RING_PIXEL_OFFSET` and `CLOCK_PIXEL_COUNT` to match, via a `[led_chain]`
+> override in `platformio.local.ini`. Firmware geometry and real wiring must
+> always agree: a mismatch rotates the whole clock face by one LED.
 
 ### LED Indexing (15" variant)
 - **Physical strip indexes 0-59**: Outer ring, logical 0-59

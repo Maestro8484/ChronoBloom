@@ -65,17 +65,57 @@ using ClockWebServer = WebServer;
 #define DEFAULT_OUTER_RING_OFFSET 0
 #endif
 
-// Sacrificial pixel: an extra WS2812B ahead of the rings that is kept dark and
-// only re-drives the 3.3V data line at 5V logic. Vestigial troubleshooting
-// remnant present in the maintainer's original 8" build; replicable builds
-// leave it disabled. See the [led_chain] note in platformio.ini.
-#ifndef SACRIFICIAL_PIXEL_ENABLED
-#define SACRIFICIAL_PIXEL_ENABLED 0
-#endif
-
-#ifndef SACRIFICIAL_PIXEL_INDEX
-#define SACRIFICIAL_PIXEL_INDEX 0
-#endif
+// ---------------------------------------------------------------------------
+// FYI, for anyone wiring addressable LEDs to a 3.3 V board
+//
+// This clock does NOT use a "sacrificial" first LED, and this firmware has no
+// support for one. The original 8" prototype had one for a while; it came out
+// on 2026-08-01 and the code went with it. The idea is worth knowing anyway,
+// because it explains a whole class of "my strip flickers / shows the wrong
+// colours / only the first few light up" problems.
+//
+// WS2812B-family LEDs run off 5 V and want roughly 3.5 V before they will read
+// a bit as a "1". An ESP32-C3 drives its data pin at 3.3 V. That is under the
+// threshold, so the very first LED in the chain is being asked to read a signal
+// that is marginal by design. Sometimes it works, sometimes it works until the
+// room warms up or the wire gets longer.
+//
+// The trick: every LED in a chain does not pass the signal along, it re-reads
+// it and re-transmits a fresh copy at its own 5 V supply level. So the first LED
+// cleans up the weak 3.3 V signal for free. Wire one extra LED ahead of the
+// rings, never light it, and every LED after it receives a proper 5 V signal.
+// You have "sacrificed" one LED to act as a level shifter (level shifter =
+// something that converts a low-voltage signal to a higher voltage one).
+//
+// What it looks like when the levels are NOT sorted out. The tell is that the
+// damage clusters at the START of the chain, because the first LED is the only
+// one reading the weak signal - everything past it reads a clean 5 V copy:
+//   * the first LED, or first few, flicker or show a wrong colour while the
+//     rest of the strip is perfect
+//   * random sparkle or single wrong pixels that move around frame to frame
+//   * the whole strip freezes on one bad frame until the next refresh
+//   * it works on the bench and fails once the data wire gets longer
+//   * it works cold and starts glitching once the room or the LEDs warm up
+//   * it works one boot and not the next, with nothing changed
+//
+// The counter-intuitive one, worth knowing because it sends people down the
+// wrong path: a BETTER power supply can break a strip that used to work. The
+// threshold for a "1" is a fraction of the supply voltage, so feeding the LEDs a
+// true 5.0 V raises the bar the 3.3 V signal has to clear, while a sagging 4.5 V
+// supply lowers it. If a strip worked on a weak supply and started glitching on
+// a good one, this is why, and the answer is a level shifter, not a worse PSU.
+//
+// What it does NOT do: it does not extend how far the data can travel. The run
+// from the board to the FIRST LED is the fragile part, and a sacrificial pixel
+// sits at the far end of that run, so it cannot help it. Keep that first hop
+// short (under about 30 cm / 12 in), use one data wire with a ground running
+// alongside it, and put a resistor of roughly 330-470 ohms in the data line at
+// the board end to soften the signal edge and stop it reflecting back.
+//
+// The proper fix, if you need one: a 74AHCT125 buffer chip. It is a purpose-made
+// level shifter, costs well under a pound, and does the job the sacrificial LED
+// was improvising. It is what to reach for if a long run misbehaves.
+// ---------------------------------------------------------------------------
 
 #ifndef ENABLE_WIFI_UI
 #define ENABLE_WIFI_UI 1
@@ -146,10 +186,6 @@ constexpr RingConfig RING_INNER_12 = {12, RING_PIXEL_OFFSET + 84, true};
 #error "CENTER_PIXEL_INDEX must be inside CLOCK_PIXEL_COUNT when CENTER_PIXEL_ENABLED is set."
 #endif
 
-#if SACRIFICIAL_PIXEL_ENABLED && (SACRIFICIAL_PIXEL_INDEX >= CLOCK_PIXEL_COUNT)
-#error "SACRIFICIAL_PIXEL_INDEX must be inside CLOCK_PIXEL_COUNT when SACRIFICIAL_PIXEL_ENABLED is set."
-#endif
-
 #if (RING_PIXEL_OFFSET + 96) > CLOCK_PIXEL_COUNT
 #error "RING_PIXEL_OFFSET leaves too few pixels for the 60+24+12 ring chain."
 #endif
@@ -160,14 +196,6 @@ constexpr RingConfig RING_INNER_12 = {12, RING_PIXEL_OFFSET + 84, true};
 
 #if CENTER_PIXEL_ENABLED && !CENTER_PIXEL_SEPARATE_OUTPUT && (CENTER_PIXEL_INDEX >= RING_PIXEL_OFFSET) && (CENTER_PIXEL_INDEX < (RING_PIXEL_OFFSET + 96))
 #error "CENTER_PIXEL_INDEX overlaps the ring pixel range."
-#endif
-
-#if SACRIFICIAL_PIXEL_ENABLED && (SACRIFICIAL_PIXEL_INDEX >= RING_PIXEL_OFFSET) && (SACRIFICIAL_PIXEL_INDEX < (RING_PIXEL_OFFSET + 96))
-#error "SACRIFICIAL_PIXEL_INDEX overlaps the ring pixel range."
-#endif
-
-#if CENTER_PIXEL_ENABLED && !CENTER_PIXEL_SEPARATE_OUTPUT && SACRIFICIAL_PIXEL_ENABLED && (CENTER_PIXEL_INDEX == SACRIFICIAL_PIXEL_INDEX)
-#error "CENTER_PIXEL_INDEX and SACRIFICIAL_PIXEL_INDEX must be different physical pixels."
 #endif
 
 static void configureWiFiHostname() {
@@ -1405,7 +1433,6 @@ class ClockRenderer {
 #if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
     if (centerStrip_) centerStrip_->clear();
 #endif
-    setSacrificialPixelDark();
     logShow(millis(), "demo-blk");
     ledShowBudgeted(strip_, MAX_LED_MILLIAMPS);
 #if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
@@ -1426,7 +1453,6 @@ class ClockRenderer {
     strip_.clear();
     tickAnimation(now);
     applyMasterFade();
-    setSacrificialPixelDark();
     logShow(now, "anim");
     ledShowBudgeted(strip_, MAX_LED_MILLIAMPS);
 #if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
@@ -1495,7 +1521,6 @@ class ClockRenderer {
     if (centerStrip_) scaleStripBufferVideo(*centerStrip_, br);
 #endif
     applyMasterFade();
-    setSacrificialPixelDark();
     logShow(now, "face");
     ledShowBudgeted(strip_, MAX_LED_MILLIAMPS);
 #if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
@@ -2781,14 +2806,6 @@ class ClockRenderer {
 #endif
 #else
     (void)color;
-#endif
-  }
-
-  void setSacrificialPixelDark() {
-#if SACRIFICIAL_PIXEL_ENABLED
-    if (SACRIFICIAL_PIXEL_INDEX < CLOCK_PIXEL_COUNT) {
-      strip_.setPixelColor(SACRIFICIAL_PIXEL_INDEX, 0);
-    }
 #endif
   }
 
@@ -4176,7 +4193,7 @@ class WebUi {
         ",\"middle_ambient_scale\":%u,\"inner_ambient_scale\":%u"
         ",\"button_event_count\":%lu,\"free_heap\":%lu"
         ",\"clock_pixel_count\":%u,\"ring_pixel_offset\":%u"
-        ",\"default_outer_ring_offset\":%u,\"outer_ring_offset\":%u,\"sacrificial_enabled\":%s"
+        ",\"default_outer_ring_offset\":%u,\"outer_ring_offset\":%u"
         ",\"anim_phase\":\"%s\",\"last_anim_source\":\"%s\",\"last_anim_mode\":%u"
         ",\"display_sleep\":%s"
         ",\"reel_active\":%s,\"master_fade\":%u"
@@ -4196,7 +4213,6 @@ class WebUi {
         (unsigned)CLOCK_PIXEL_COUNT, (unsigned)RING_PIXEL_OFFSET,
         (unsigned)DEFAULT_OUTER_RING_OFFSET,
         (unsigned)ds.outerRingOffset,
-        SACRIFICIAL_PIXEL_ENABLED ? "true" : "false",
         renderer_.animPhaseName(), renderer_.lastAnimSource(), (unsigned)renderer_.lastAnimMode(),
         (lux_ && lux_->displaySleeping()) ? "true" : "false",
         renderer_.reelModeActive() ? "true" : "false", (unsigned)renderer_.masterFade(),
@@ -5072,9 +5088,9 @@ static void logRuntimeStatus(uint32_t now) {
   }
 #endif
 
-  Serial.printf("  LEDs  : count=%d  ringOffset(hw)=%d  defaultRot=%d  rotOffset(sw)=%d  center=%d  sac=%s\n",
+  Serial.printf("  LEDs  : count=%d  ringOffset(hw)=%d  defaultRot=%d  rotOffset(sw)=%d  center=%d\n",
                 CLOCK_PIXEL_COUNT, RING_PIXEL_OFFSET, DEFAULT_OUTER_RING_OFFSET, s.outerRingOffset,
-                CENTER_PIXEL_INDEX, SACRIFICIAL_PIXEL_ENABLED ? "yes" : "no");
+                CENTER_PIXEL_INDEX);
   Serial.printf("  NTP   : %s\n", timeSync.synced() ? "synced" : "waiting");
 }
 
@@ -5124,13 +5140,6 @@ void setup() {
     Serial.print("enabled at physical index ");
     Serial.println(CENTER_PIXEL_INDEX);
 #endif
-  } else {
-    Serial.println("disabled");
-  }
-  Serial.print("Sacrificial pixel: ");
-  if (SACRIFICIAL_PIXEL_ENABLED) {
-    Serial.print("enabled at physical index ");
-    Serial.println(SACRIFICIAL_PIXEL_INDEX);
   } else {
     Serial.println("disabled");
   }

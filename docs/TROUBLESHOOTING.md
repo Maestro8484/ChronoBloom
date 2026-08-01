@@ -200,7 +200,8 @@ Should print `1 1` when not pressed, `0 1` or `1 0` when single button pressed.
 1. **Power supply**: Verify 5V present at LED strip VCC/GND
 2. **Data connection**: Check 300 ohm resistor inline with GPIO10 -> LED DIN
 3. **Strip polarity**: Ensure VCC/GND not swapped (can damage LEDs)
-4. **Index 0**: On both shipped variants, physical index 0 is the first active ring LED (`SACRIFICIAL_PIXEL_ENABLED=0`, `RING_PIXEL_OFFSET=0`). A vestigial "sacrificial pixel" option exists for a 98-LED chain (index 0 dark, first active LED at index 1) but ships disabled -- see the `[led_chain]` note in `platformio.ini`. If upgrading the 15" from a pre-v2.0.2 build, rewire GPIO10 data line directly to DIN of first ring LED.
+4. **Index 0**: On both variants, physical index 0 is the first active ring LED (`RING_PIXEL_OFFSET=0`). If upgrading the 15" from a pre-v2.0.2 build, rewire GPIO10 data line directly to DIN of first ring LED.
+5. **First LED misbehaving specifically** (flickers, wrong colour, or sparkle that clusters at the start of the chain while the rest is fine): that pattern points at logic levels, not a dead LED. The C3 drives data at 3.3 V and WS2812Bs want about 3.5 V off a 5 V supply, so the first LED is reading a marginal signal. Watch for the counter-intuitive version: a *better*, truer 5 V supply can break a chain that worked on a sagging one, because the threshold scales with supply voltage. Keep the run from the board to the first LED short, keep a ground alongside the data wire, and if it persists fit a 74AHCT125 buffer. `src/main.cpp` carries the full explanation above the LED geometry constants.
 
 **Serial output check**:
 ```

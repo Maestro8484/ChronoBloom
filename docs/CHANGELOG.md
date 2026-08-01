@@ -2,6 +2,54 @@
 
 > Formerly neopixelClock-esp32c3-v3
 
+## [2.32.0] - 2026-08-01 (Sacrificial-pixel support removed; every build is now the same 97-LED chain)
+
+Both envs build clean (8": RAM 11.3%, Flash 61.8% / 809,508 B. 15": RAM 11.3%, Flash 61.8% /
+809,718 B). **Not yet observed on hardware.** The check that would confirm it: flash the 8" and
+look at the face — the 12 o'clock marker must sit at physical top and the centre pixel must light.
+A one-LED rotation would mean firmware geometry and real wiring disagree.
+
+### Removed
+- **The "sacrificial first pixel" build option is gone**, along with every trace of it in firmware:
+  the `SACRIFICIAL_PIXEL_ENABLED` / `SACRIFICIAL_PIXEL_INDEX` macros, the three `#error` geometry
+  guards that referenced them, `LedRenderer::setSacrificialPixelDark()` and its three call sites in
+  the demo-black, animation and face render paths, the `sac=` field in the boot LED summary line,
+  and the "Sacrificial pixel: enabled/disabled" boot serial block.
+
+  Context: the maintainer's original 8" prototype had one extra WS2812B spliced in ahead of the
+  rings, kept dark, whose only job was to re-drive the board's 3.3 V data signal at a full 5 V for
+  the LEDs behind it. It was added while chasing early signal problems, was never actually needed,
+  and was **physically removed on 2026-08-01**. The firmware option went with it so that every
+  build — the maintainer's included — is the identical 97-LED chain everyone else builds.
+
+- **`sacrificial_enabled` removed from the `GET /diag` response.** It could only ever report
+  `false` after this change. `docs/API.md` updated. Nothing in the repo consumed it; verified by
+  search before removal.
+
+### Added
+- **A plain-English write-up of the level-shifting problem**, in `src/main.cpp` above the LED
+  geometry constants. Explains why a 3.3 V board driving 5 V WS2812Bs is marginal by design, how a
+  spare first LED works around it, what it does **not** fix (the run between the board and the
+  first LED), the symptom list that points at logic levels rather than a dead LED, and the
+  counter-intuitive case where a truer 5 V supply breaks a chain that worked on a sagging one.
+  `docs/HARDWARE.md` and `docs/TROUBLESHOOTING.md` carry shorter versions.
+
+### Changed
+- `platformio.ini` `[led_chain]` is now just the 8" chain geometry, with the sacrificial pixel as a
+  historical note rather than a supported flag. `platformio.local.ini.example`'s override example is
+  now a generic "chain with unused LEDs at the front" case.
+- Public copy updated where it claimed the firmware still supports the option:
+  `docs/publish/HACKADAY.md`, `docs/publish/REDDIT_ESP32.md`, and the matching blocks in
+  `docs/publish/launch.json` (`launch_hq.html` regenerated). Corrected a mislabelled fact-sheet row
+  that described the **centre status pixel** as "Sacrificial single pixel, troubleshooting-only".
+
+### Files changed
+`src/main.cpp`, `platformio.ini`, `platformio.local.ini.example`, `docs/API.md`,
+`docs/HARDWARE.md`, `docs/TROUBLESHOOTING.md`, `docs/LAUNCH_GAPS.md`, `docs/publish/HACKADAY.md`,
+`docs/publish/REDDIT_ESP32.md`, `docs/publish/PUBLISH.md`, `docs/publish/RELEASE_MANIFEST.md`,
+`docs/publish/launch.json`, `docs/publish/launch_hq.html`, `docs/FUNCTION_INVENTORY.md`,
+`docs/symmap.json`, `docs/CHANGELOG.md`
+
 ## [2.31.5] - 2026-07-31 (No more 10-second pause on every boot of a portal-set-up clock)
 
 Built clean on both envs. **Not yet observed on hardware.** The check that would confirm it: set a
