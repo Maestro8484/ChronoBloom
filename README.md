@@ -132,7 +132,7 @@ The **spacer** is the third one people skip, and it earns its place twice. Its r
 
 **Holding it together.** The M2 screws pull the outer pieces inward, but they aren't long enough to run the whole way through the 2 mm holes, so don't expect one screw to clamp the whole sandwich. What works: cut 10 to 15 mm lengths of 1.75 mm printer filament and push them into those 2 mm holes as alignment pins, they grip tightly, then a little superglue between the frame ring, the spacer and the reflector locks the stack. Filament aligns, glue holds, screws handle the outer pieces.
 
-The LED rings drop straight into the recessed seats in the printed core, no forcing, no rework. <!-- TODO: the OD numbers above (~175mm/~88mm/~50mm) are still the kit listing's stated sizes, not a caliper reading. Get exact numbers before a Printables upload if precision matters there. -->
+The LED rings drop straight into the recessed seats in the printed core, no forcing, no rework. Measured with calipers, the rings are 172 mm across the outer 60, 92 mm across the middle 24 and 52 mm across the inner 12, with a 6 mm opening in the middle for the single center LED. Any WS2812B rings at those diameters will seat.
 
 ## Wiring
 

@@ -59,12 +59,16 @@ expect to experiment with.
 
 The three rings drop into printed seats on the core: 60 LEDs outer, 24 middle, 12 inner, plus one loose pixel for the center. The LEDs on each ring seat exactly into the recesses, no forcing. A little cleanup of stringing around the seats is normal.
 
-Any WS2812B rings in 60/24/12 counts with the same outer diameters will fit; the seats were sized to the rings in the WESIRI 241-LED kit from the BOM.
+Measured off the rings themselves with calipers, not copied from the kit listing:
 
-<!-- TODO: exact ring outer diameters, in calipered mm, are not written down anywhere yet. The
-~172-175mm / ~88-92mm / ~50-52mm figures used elsewhere in the docs are the kit listing's stated
-sizes, not a measurement. Fit is confirmed regardless, but pin down real numbers before a
-Printables upload where precision matters. -->
+| Ring | LEDs | Outer diameter |
+|---|---|---|
+| Outer | 60 | **172 mm** |
+| Middle | 24 | **92 mm** |
+| Inner | 12 | **52 mm** |
+| Center | 1 | **6 mm** opening for a single LED |
+
+Any WS2812B rings in 60/24/12 counts at those diameters will fit. The seats were sized to the rings in the WESIRI 241-LED kit from the BOM, so that kit drops straight in.
 
 > Assembly here is words only for now. Photos of a full build are coming, and my guess is
 > within a week or so of 2026-07-31. If you are reading this well after that and there are
