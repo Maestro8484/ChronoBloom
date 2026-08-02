@@ -13,10 +13,9 @@ Files: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/](publish/Chrono
 | Spacer | 1 | `Chronobloom-8inch-v13-Spacer.stl` (print it, it is not optional, see below) |
 | Back cover | 1 | `Chronobloom-8inch-v13-backCover.stl` |
 | Back cover, with button openings | 1 | `Chronobloom-8inch-v13-backCover-Buttons.stl` |
-| Desk stand | 1 | `Chronobloom-8inch-v11-stand.stl` |
+| Desk stand | 1 | `Chronobloom-8inch-v13-stand.stl` |
 
-The stand still carries its v11 name because it is unchanged. It does not touch the
-bolt pattern, so v13 had no reason to revise it. It is in the assembly 3MF too.
+The stand is in the assembly 3MF as well, so you get it either way.
 
 There is also `Chronobloom-8inch-v13-AssemblyView.3mf`, which is the stack arranged the way it
 goes together rather than laid out for printing. Open it if you want to see the order before you
