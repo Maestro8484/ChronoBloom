@@ -2,18 +2,29 @@
 
 Covers the 8" build. The 15" files ship for the adventurous, but a guide is not written yet; the 3MF and the LightBurn SVG are the whole story for now.
 
-Files: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/v11/](publish/ChronoBloom_3D_Files/ChronoBloom_8inch/v11/). The assembly 3MF has every part with print profiles already embedded (Bambu Studio); the individual STLs are there if you want to lay them out yourself.
+Files: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/](publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/). The assembly 3MF has every part with print profiles already embedded (Bambu Studio); the individual STLs are there if you want to lay them out yourself.
 
 | Part | Qty | File |
 |---|---|---|
-| Everything, profiles embedded | -- | `Chronobloom-8inch-all-v11-Assembly.3mf` |
-| Frame ring | 1 | `Chronobloom-8inch-v11-ring.stl` |
-| Front diffuser | 1 | `Chronobloom-8inch-v11-front-diffuser.stl` |
-| Reflector | 1 | `Chronobloom-8inch-v11-reflector.stl` |
-| Back cover | 1 | `Chronobloom-8inch-v11-backCover.stl` |
-| Back cover, with button openings | 1 | `Chronobloom-8inch-v11-backCover(alt-w-buttons).stl` |
-| Stand | 1 | `Chronobloom-8inch-v11-stand.stl` |
-| Spacer | 1 | `Chronobloom-8inch-v12-spacer.stl` (print it, it is not optional, see below) |
+| Everything, profiles embedded | -- | `Chronobloom-8inch-all-v13-Assembly.3mf` |
+| Frame ring | 1 | `Chronobloom-8inch-v13-Ring.stl` |
+| Front diffuser | 1 | `Chronobloom-8inch-v13-frontDiffuser.stl` |
+| Reflector | 1 | `Chronobloom-8inch-v13-Reflector.stl` |
+| Spacer | 1 | `Chronobloom-8inch-v13-Spacer.stl` (print it, it is not optional, see below) |
+| Back cover | 1 | `Chronobloom-8inch-v13-backCover.stl` |
+| Back cover, with button openings | 1 | `Chronobloom-8inch-v13-backCover-Buttons.stl` |
+| Desk stand | 1 | `Chronobloom-8inch-v11-stand.stl` |
+
+The stand still carries its v11 name because it is unchanged. It does not touch the
+bolt pattern, so v13 had no reason to revise it. It is in the assembly 3MF too.
+
+There is also `Chronobloom-8inch-v13-AssemblyView.3mf`, which is the stack arranged the way it
+goes together rather than laid out for printing. Open it if you want to see the order before you
+commit to a print. Do not slice that one.
+
+Three SVGs ship alongside for anyone cutting rather than printing the flat parts:
+`ChronoBloom-FrontDiffuser.svg`, `ChronoBloom-backCover.svg` and
+`ChronoBloom-backCoverButtons.svg`.
 
 Print one back cover or the other, not both. The alternate has the openings for the two
 momentary buttons.
@@ -92,23 +103,36 @@ barriers.
 
 ## Assembly hardware
 
-M2 and M3 self-tapping screws hold the frame together, roughly 6 of each. They bite straight
-into the printed holes, so there are no heat-set inserts to sink and no soldering needed to put
-the frame together. The electronics are a lighter touch than you might expect too: the rings
-arrive with 3-wire JST connectors already on them, so soldering the chain is about a joint that
-survives years on a wall, not about making the connection at all. See the wiring section in the
-README.
-An assorted screw box covers both sizes.
+**M2.5 fine thread bolts, and nothing else.** No glue, no pins, no heat-set inserts, no
+soldering iron for the frame. The v13 parts changed this: earlier versions leaned on filament
+offcuts as alignment pins with a drop of superglue, because the old screws could not reach
+through the stack. They can now, so that whole workaround is gone. If you have read an older
+version of these instructions, ignore it.
 
-**What the M2s can and cannot do.** Use them to pull the outer pieces inward. They are not long
-enough to run the whole way through the 2 mm holes, so do not plan on one screw clamping the
-whole stack.
+The ring is the spine of the build. It is **21 mm thick**, and everything bolts into it:
 
-**The trick that does hold the stack: filament pins and glue.** Those same 2 mm holes take a
-snug length of 1.75 mm 3D printing filament. Cut pieces about 10 to 15 mm long, push them in,
-and they align the layers tightly with no hardware at all. Then run a little superglue between
-the frame ring, the spacer and the reflector to lock the sandwich together. Filament for
-alignment, glue for holding, screws for the outer pieces.
+- **From the front**, one bolt runs through all three front parts, the front diffuser, the
+  reflector and the spacer, and threads into the ring.
+- **From the back**, the back cover bolts into the same ring.
+
+So the ring takes the thread from both directions and holds the sandwich together on its own.
+
+| Hole | Diameter | Where | Job |
+|---|---|---|---|
+| Pass-through | **2.9 mm** | front diffuser, reflector, spacer, back cover | Clearance. The bolt slides through without biting |
+| Threaded | **2.6 mm** | the ring only | The M2.5 fine thread cuts its own thread here |
+
+The 2.6 mm figure is the modelled hole. Calipered on an actual printed part the crest measures
+about **2.35 mm**, which is what gives the fine thread something to bite into. If your printer
+runs tight and the bolt will not start, open the ring holes with a 2.6 mm bit rather than
+forcing it. Do not drill the 2.9 mm pass-through holes any wider or the bolt heads lose their
+seat.
+
+Use fine thread, not coarse. Coarse M2.5 will strip a 2.6 mm printed hole on the first pass.
+
+The electronics are a lighter touch than you might expect too: the rings arrive with 3-wire JST
+connectors already on them, so soldering the chain is about a joint that survives years on a
+wall, not about making the connection at all. See the wiring section in the README.
 
 ## Credit
 

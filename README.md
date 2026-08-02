@@ -69,9 +69,7 @@ Prices swing. Shop around.
 | Momentary push buttons | 2 | Time up/down, factory reset combo. Prewired 7mm ones save you a soldering job. | [Amazon](https://www.amazon.com/Gebildet-250VAC-Prewired-Momentary-Railway/dp/B083JWJPW5?tag=maestro8484-20) |
 | USB-C phone charger, 2A | 1 | The clock has a USB-C socket on the back. Any phone charger does it. I run mine on 2A. You almost certainly own one already. | Whatever is in your drawer |
 | 300 ohm resistor | 1, optional | Inline on the LED data line. Good practice, and it costs nothing if you have one. Mine run fine without it, so do not let a missing resistor stop you building. | Parts bin, or any resistor kit |
-| M2 and M3 self-tapping screws | 6 each | Frame assembly. The M2s secure the outer pieces inward; they do not reach all the way through the 2mm holes, so the stack itself is aligned with filament pins and a little superglue (see [docs/PRINTING.md](docs/PRINTING.md)). An assorted box covers both sizes and costs less than buying them separately. | [Amazon](https://www.amazon.com/gp/product/B0GT4PFGSK?tag=maestro8484-20) |
-| A few cm of 1.75mm filament | scrap | Cut into 10-15mm pins for aligning the frame ring, spacer and reflector. Any spare filament works. | Your scrap bin |
-| Superglue | a drop | Bonds the frame ring, spacer and reflector once the pins have them aligned. | Whatever is in your drawer |
+| M2.5 fine thread bolts | 8 | The only fastener in the build. They pass through the front three parts and the back cover, and thread into the ring. **Fine thread, not coarse.** Coarse will strip a printed hole. An assorted box is cheaper than buying one size. | [Amazon](https://www.amazon.com/gp/product/B0GT4PFGSK?tag=maestro8484-20) |
 
 **Why 2A is enough.** All 97 LEDs at full white would want about 5.8A, which sags the rail and browns
 the board out. The firmware never lets that happen: before every frame it adds up what the pixels are
@@ -124,13 +122,15 @@ Build environment: `esp32c3_v3_15inch`
 
 ### 3D print files
 
-Current 8" set: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/v11/](docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/v11/). Eight files, including one assembly 3MF with the print profiles already set. 15" set: [ChronoBloom_15inch/](docs/publish/ChronoBloom_3D_Files/ChronoBloom_15inch/). Print settings and the front-diffuser rules are in [docs/PRINTING.md](docs/PRINTING.md). CC BY 4.0, credit Steve Manley (see [NOTICE](NOTICE)).
+Current 8" set: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/](docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/). Six printable parts plus an assembly 3MF with the print profiles already set, a second 3MF showing the stack in assembly order, and SVGs of the flat parts for anyone cutting rather than printing. 15" set: [ChronoBloom_15inch/](docs/publish/ChronoBloom_3D_Files/ChronoBloom_15inch/). Print settings and the front-diffuser rules are in [docs/PRINTING.md](docs/PRINTING.md). CC BY 4.0, credit Steve Manley (see [NOTICE](NOTICE)).
 
 Two of those parts do opposite jobs and the names matter. The **reflector** sits behind the LEDs and shapes the light into pointed hands, and that's the part remixed from Steve Manley's design. The **front diffuser** is a separate thin white sheet over the face that softens the pixels into a bloom. That one's mine, and it's the fussy one to print.
 
 The **spacer** is the third one people skip, and it earns its place twice. Its raised rings stand exactly as tall as the WS2812B rings sit once they're seated in the reflector, so the stack closes at the right height, and those same rings sit between the 60, the 24 and the 12 as walls so one ring's light doesn't wash into the next. Flat side faces away from the front of the clock.
 
-**Holding it together.** The M2 screws pull the outer pieces inward, but they aren't long enough to run the whole way through the 2 mm holes, so don't expect one screw to clamp the whole sandwich. What works: cut 10 to 15 mm lengths of 1.75 mm printer filament and push them into those 2 mm holes as alignment pins, they grip tightly, then a little superglue between the frame ring, the spacer and the reflector locks the stack. Filament aligns, glue holds, screws handle the outer pieces.
+**Holding it together.** M2.5 fine thread bolts, and nothing else. No glue, no pins, no inserts. The ring is the spine: it's 21 mm thick and everything threads into it. One bolt runs from the front through all three front parts, the diffuser, the reflector and the spacer, and bites into the ring. The back cover bolts into that same ring from behind. The pass-through holes are 2.9 mm so the bolt slides, and the ring's own holes are 2.6 mm so the thread cuts in and holds.
+
+Use **fine** thread. Coarse M2.5 strips a printed hole on the first turn. If your printer runs tight and a bolt won't start, open the ring holes with a 2.6 mm bit rather than forcing it, and leave the 2.9 mm holes alone.
 
 The LED rings drop straight into the recessed seats in the printed core, no forcing, no rework. Measured with calipers, the rings are 172 mm across the outer 60, 92 mm across the middle 24 and 52 mm across the inner 12, with a 6 mm opening in the middle for the single center LED. Any WS2812B rings at those diameters will seat.
 

@@ -83,13 +83,21 @@ to the next one. The fix is replacing that one pixel, not the whole ring.
 ### Power
 | Pin       | Function                | Notes                              |
 |-----------|-------------------------|------------------------------------|
-| 5V / VIN  | LED power rail          | Fed from the XIAO's own USB-C socket (VBUS pass-through). The rings tap this pin; there is no separate LED supply |
+| 5V / VIN  | Board input AND LED power rail | This build feeds the whole board through this pin, not through the USB-C socket. The 5V pin and the USB-C VBUS line are tied to the same internal net, so power put on either one reaches both. The rings tap this same pin; there is no separate LED supply |
 | GND       | Common ground           | Rings share ground with the XIAO   |
 | 3V3       | Logic power only        | **Do NOT power LEDs from 3.3V**    |
 
-One USB-C phone charger (2A) into the XIAO powers the whole clock. The firmware
-sums each frame's LED draw and dims any frame that would cross the 1.8A budget,
-so the charger is never overdrawn. Details under Power Requirements below.
+**Never power the board from the 5V pin and the USB-C cable at the same time.**
+Because the two are the same net, doing both back-feeds one source into the
+other with nothing in between to stop it. That is only safe with a blocking
+diode (an "OR-ing" or ideal-diode circuit) between the two inputs. This board
+has no such diode fitted. Pick one power source and unplug the other before
+connecting the second.
+
+A 5V 2A supply wired directly to the 5V pin powers the whole clock. The
+firmware sums each frame's LED draw and dims any frame that would cross the
+1.8A budget, so the supply is never overdrawn. Details under Power
+Requirements below.
 
 ### Avoid These Pins
 - **GPIO2, GPIO8** -- ESP32-C3 boot strapping pins. Never use for peripherals.
@@ -153,11 +161,11 @@ VEML7700 SCL -> GPIO7 (yellow wire)
 - **Typical operation**: 1.5-2A @ 5V (clock display mode)
 
 ### Recommended Power Supply
-A 5V 2A phone charger is enough. The firmware caps total LED draw at 1800mA (`MAX_LED_MILLIAMPS`): before every frame it adds up what the pixels are about to draw and dims that frame if it would cross the budget. So the worst-case 5.8A can't actually happen.
+A 5V 2A supply wired to the 5V/VIN pin is enough. The firmware caps total LED draw at 1800mA (`MAX_LED_MILLIAMPS`): before every frame it adds up what the pixels are about to draw and dims that frame if it would cross the budget. So the worst-case 5.8A can't actually happen.
 
 ### ESP32-C3 Power
 - **Active WiFi**: ~120mA @ 3.3V
-- **Powered via**: USB-C (XIAO board) or VIN pin
+- **Powered via**: 5V/VIN pin on this build. The USB-C socket is an alternate input on the same net, not a second simultaneous source -- see the warning under Pin Assignments > Power.
 
 ---
 
