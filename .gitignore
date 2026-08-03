@@ -19,3 +19,7 @@ docs/publish/*fpscreenshot*
 __pycache__/
 *.pyc
 .mad/
+
+# Release assets stage here for manual attachment to a GitHub Release.
+# Bins are already covered by *.bin above; the 3D-files zip needs its own rule.
+docs/publish/release_assets/*.zip
