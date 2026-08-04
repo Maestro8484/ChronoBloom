@@ -20,17 +20,18 @@ tour](https://www.youtube.com/watch?v=FKXAHg8D2Fs) of every setting.
 
 ## Why I built it
 
-I went downstairs to print a coloring page. On the way I found a project that needed me. An hour
-later I came back up empty-handed and got: Dad, I thought you were printing me a coloring page.
-
-That's the tendency this clock is built around. I hyperfocus, and alarms don't fix it. One lands
-mid-thought, I swipe it away, and I've already forgotten it. A change of light in the room does
-work. So I put it in the thing I already look at.
+I hyperfocus, and I lose hours to the wrong thing. Alarms don't fix it. One lands mid-thought, I
+swipe it away, and I've already forgotten it. A change of light in the room does work. So I put it
+in the thing I already look up to. And to look pretty.
 
 The clock doesn't nag and there's nothing to dismiss. Every so often the light does something slow
 and obvious at the edge of your vision, and you get to decide what happens next. An alarm demands.
 A nudge asks. It helps that it's pretty, and that it's already on the wall doing a job, so I never
 resent it going off.
+
+The version that gets me is small and ordinary: I went downstairs to print a coloring page, found a
+project on the way, and came back up an hour later empty-handed. The project will still be there
+tomorrow. My kids being this age won't.
 
 ChronoBloom is a clock built by a dad to keep time, and to keep life above the project at hand.
 Look up. Shift gears. Tend to what matters.
