@@ -6,27 +6,38 @@ Files: [docs/publish/ChronoBloom_3D_Files/ChronoBloom_8inch/V13/](publish/Chrono
 
 | Part | Qty | File |
 |---|---|---|
-| Everything, profiles embedded | -- | `Chronobloom-8inch-all-v13-Assembly.3mf` |
+| Everything, profiles embedded | -- | `Chronobloom-8inch-v13-All-AssemblyView.3mf` |
 | Frame ring | 1 | `Chronobloom-8inch-v13-Ring.stl` |
 | Front diffuser | 1 | `Chronobloom-8inch-v13-frontDiffuser.stl` |
 | Reflector | 1 | `Chronobloom-8inch-v13-Reflector.stl` |
 | Spacer | 1 | `Chronobloom-8inch-v13-Spacer.stl` (print it, it is not optional, see below) |
-| Back cover | 1 | `Chronobloom-8inch-v13-backCover.stl` |
-| Back cover, with button openings | 1 | `Chronobloom-8inch-v13-backCover-Buttons.stl` |
+| Back plate, desk (default) | 1 | `Chronobloom-8inch-v13-backCover.stl` |
+| Back plate, wall (alternative) | 1 | `Chronobloom-8inch-v13-backCover-Buttons.stl` |
 | Desk stand | 1 | `Chronobloom-8inch-v13-stand.stl` |
 
 The stand is in the assembly 3MF as well, so you get it either way.
 
-There is also `Chronobloom-8inch-v13-AssemblyView.3mf`, which is the stack arranged the way it
-goes together rather than laid out for printing. Open it if you want to see the order before you
-commit to a print. Do not slice that one.
+There used to be a second project file holding the same parts arranged as a stack to look at.
+The two were consolidated in August 2026, so `Chronobloom-8inch-v13-All-AssemblyView.3mf` is now
+the only one and it does both jobs: it carries all seven parts with the print profiles already
+set, laid out across eight plates, and you can slice it directly.
 
 Three SVGs ship alongside for anyone cutting rather than printing the flat parts:
 `ChronoBloom-FrontDiffuser.svg`, `ChronoBloom-backCover.svg` and
 `ChronoBloom-backCoverButtons.svg`.
 
-Print one back cover or the other, not both. The alternate has the openings for the two
-momentary buttons.
+Print one back plate or the other, not both. The choice is desk or wall.
+
+**Desk, and this is the default.** `Chronobloom-8inch-v13-backCover.stl` carries the cutout for
+the stand.
+
+**Wall.** `Chronobloom-8inch-v13-backCover-Buttons.stl`, 2 mm, with the openings for the two
+momentary buttons. Both back plates are in the all-in-one assembly 3MF, so you do not have to go
+looking for either.
+
+One thing to think about before you commit to the wall version: the buttons sit on the back, so
+mounted flat they end up tight against the wall and may be awkward to reach. Leave yourself a
+little standoff. How much has not been measured, so treat that as a warning rather than a number.
 
 ## Two parts, two jobs, and the names matter
 

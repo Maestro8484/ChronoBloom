@@ -2,6 +2,229 @@
 
 > Formerly neopixelClock-esp32c3-v3
 
+## [2.35.0] - 2026-08-04 (Hand-contrast trial: three candidate mechanisms behind a wall switch)
+
+### Added
+- **The hand-contrast wall trial** (operator: unified hands sink into same-hue faces —
+  chronobloom magenta-on-magenta, Ember Dahlia's minute hand measured at 1.2x the LIFTED
+  outer crests). RAM-only bitmask `handTrial=0..7` on the shared settings parser (never
+  persisted, reboot clears, `/diag` gains `hand_trial`):
+  - bit 1 `lift cap`: `petalPixel()`'s lift stops adding headroom at 128 so faces never
+    climb toward the hands' 255 ceiling; a face the user set above 128 stays as set.
+  - bit 2 `shadow halo`: the LEDs flanking the minute hand (60-ring) and middle hour hand
+    (24-ring) dim to 15% of the face — a dark notch, geometric contrast immune to hue
+    overlap and deep dim. Markers eclipse deliberately (the hand wins). Inner 12-ring
+    left un-haloed (3 of 12 LEDs is too much throat).
+  - bit 4 `whitened hands`: hour/minute colors pulled 55% toward white before gamma
+    (the cream-second-hand trick applied to the time hands). Seconds untouched.
+- `scripts/hand_trial.py` + `scripts/hand_trial.bat`: walks baseline / cap / cap+halo /
+  cap+halo+white at day and night brightness, on the wall theme then on Ember Dahlia
+  staged via the auto-reverting preview. About 2 minutes, nothing persists. Run this
+  session against the live 15": the guard correctly refused on 2.34.1 and named the
+  flash step.
+- The full contrast report (mechanisms P1-P5, the measured failures, and the rulings
+  queue Q8-Q12) lives in docs/THEME_RULES_DESIGN_2026-08-04.md.
+
+### Files changed
+- `src/main.cpp` (`g_handTrialMask`, `petalPixel` lift cap, `haloRingPixel`/`haloAround`,
+  `handColor`, settings parser, `/diag`)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.34.1 to 2.35.0)
+- `scripts/hand_trial.py`, `scripts/hand_trial.bat`
+- `docs/CHANGELOG.md`, `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md`
+
+### Not verified
+Both envs build clean; NOT flashed. The check: flash 2.35.0, double-click
+`scripts\hand_trial.bat`, watch the four looks, reply with the winner.
+
+## [2.34.1] - 2026-08-04 (The last green path: animations dim hue-safely; inner hour hand unified)
+
+### Fixed
+- **"Still seeing green in the center" diagnosed against the live clocks and closed.**
+  The center pixel itself renders `centerColor` only (`renderCenterIdle`) and both units
+  carry red centers -- mathematically incapable of green. The green lives in the BLOOM
+  animations: `renderAnimFrame()` was the one dim path the v2.33.1/.2 fixes deliberately
+  skipped, still using Adafruit `setBrightness()` per-channel truncation. Every chime and
+  nudge bloom at night ran through it, and Golden hour's gold core `#FFD728` is exactly
+  the near-tie color the green die tips over. Animations now join the face path: drawn at
+  full, dimmed by the same hue-preserving `scaleStripBufferVideo(br)`.
+- Deliberate side effect: animQ1/Q2's `setBrightness(animEnv)` fade envelope used to
+  REPLACE the global brightness, so night chimes played at full blast. The envelope now
+  composes with auto-dim. The envelope's own 300 ms fade edges still truncate; transient,
+  accepted, documented at the call site.
+
+### Changed
+- **Q6 ruled from the wall** (operator: the 12-ring hour LEDs "do NOT radiate outward
+  with the same color/hue on the 24-ring" in chronobloom and birdofparadise): the
+  two-tone inner hour hands are gone. All seven themes now carry
+  `innerHourColor`/`innerHourLevel` equal to `hoursColor`/`hoursLevel`; the whole hour
+  hand radiates one color, center to rim. Ship gate PASS.
+- New law amendment recorded (docs/THEME_RULES_DESIGN_2026-08-04.md, R2): every
+  time indicator -- hour, minute, AND second -- must hold a scalable brightness factor
+  over the face it crosses (proposed: weighted-lumen ratio >= 2:1 at every brightness,
+  or a hue separation clause). Enforcement lands with the Q5 gate build; not yet checked
+  per theme.
+
+### Files changed
+- `tools/themes/themes.json`, `src/web_html.h`, `docs/publish/demo_reel_designer.html`
+- `src/main.cpp` (`renderAnimFrame()` only)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.34.0 to 2.34.1)
+- `docs/CHANGELOG.md`, `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md`
+
+### Not verified
+Both envs build clean; NOT flashed. The checks: flash, re-apply the theme, fire a nudge
+or chime at night brightness and watch the bloom's core stay gold; confirm the chronobloom
+hour hand runs magenta on both inner rings.
+
+## [2.34.0] - 2026-08-04 (Rule 1 lands: one hand color everywhere; plus the Q3 seam-trial switch)
+
+### Changed
+- **All seven themes: the minute hand becomes the hour hand's twin** (operator ruling Q1,
+  docs/THEME_RULES_DESIGN_2026-08-04.md). `minutesColor`/`minutesLevel` now equal
+  `hoursColor`/`hoursLevel` in every theme. Edited in `tools/themes/themes.json`, stamped
+  into `src/web_html.h` and the reel designer by `gen_themes.py`, ship gate
+  (`theme_emit_check.py`) PASS afterwards. Takes effect on a unit when a theme preset is
+  re-applied; saved EEPROM settings are untouched until then.
+- Deliberately NOT unified: the three themes whose INNER hour hand is its own color by
+  design (chronobloom `#dc00b4` middle vs `#6eb9ff` inner; birdofparadise `#ff7014` vs
+  `#fff2dc`; sunflower `#b30000` vs `#b40404`). Erasing a designed two-tone hand is not
+  covered by the Q1 ruling; flagged as open question Q6.
+
+### Added
+- **RAM-only seam-trial switch for the Q3 ruling** (`g_seamTrialBlack`): `seamTrial=0/1`
+  accepted by the shared POST `/settings` + `/settings/preview` parser (never stored;
+  EEPROM untouched; reboot resets to 0), reported as `seam_trial` in `/diag`.
+  0 = deep-dim seams keep their dominant channel at 1 (pure ember, the v2.33.2 behavior),
+  1 = they go black (shadow). The losing behavior and the switch itself get deleted after
+  the ruling.
+- `scripts/seam_trial.py` + `scripts/seam_trial.bat`: double-click A/B. Stages night
+  conditions through `/settings/preview` (auto-reverting), alternates the two looks in
+  labeled 12-second holds, reverts, and confirms via `/diag`. Run this session against the
+  live 15": the firmware guard correctly reported 2.33.2 has no switch and pointed at the
+  flash step.
+
+### Files changed
+- `tools/themes/themes.json`, `src/web_html.h`, `docs/publish/demo_reel_designer.html`
+- `src/main.cpp` (`g_seamTrialBlack`, scaler keep-lit condition, settings parser, `/diag`)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.33.2 to 2.34.0)
+- `scripts/seam_trial.py`, `scripts/seam_trial.bat`
+- `docs/CHANGELOG.md`, `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md`
+
+### Not verified
+Both envs build clean; NOT flashed. The checks: re-apply Ember Dahlia on a flashed unit and
+confirm the minute hand renders `#FF1E00` at the hour hand's strength; then run
+`scripts/seam_trial.bat` and watch the two seam candidates alternate.
+
+## [2.33.2] - 2026-08-04 (Deep-dim hue fix, round two: petal-depth seams no longer go green)
+
+### Fixed
+- **The v2.33.1 fix held except with petal depth active: the operator reported the green
+  tinge returning at exactly petalDepth 51 and up.** Diagnosed against the live 15" unit's
+  own settings, read over LAN (stock Ember Dahlia, lux-driven brightness 28-79): the gold
+  inner-face seam `#FFE25A` still landed on R:G ties like (2,2,0) and (1,1,0) at night
+  brightness, because round-to-nearest lets a weak green channel round UP into equality
+  with red. The reported 51 threshold is real in the integer math: it is where the seam's
+  blue byte dies, turning gold into yellow-green a step before the ties take over.
+- `scaleStripBufferVideo()` now rounds only the dominant channel (and channels equal to
+  it); strictly smaller channels truncate. Quantization error becomes one-sided: a
+  deep-dimmed color can only saturate toward its own dominant hue (gold to ember, violet
+  to blue), never walk across hue. Whites keep rounding as a group and stay neutral;
+  at high brightness the change is at most 1 code per channel.
+- Verified by exact-integer simulation of the full petal pipeline at the live unit's
+  values across petalDepth 40-100 and brightness 28-209: every (1,1,0)/(2,2,0) tie
+  collapses to its ember dominant; no output anywhere exceeds the color's ideal G:R ratio.
+
+### Known residue, deliberately untouched
+- A truly deep seam at output magnitude 1-2 renders as pure dominant (ember) rather than
+  gold: at that dimness 8-bit WS2812 output cannot express the ratio at all per frame.
+  The industrial fix would be temporal dithering, which needs a continuous high-rate
+  refresh this clock's 1 fps idle deliberately avoids.
+- `renderAnimFrame()` still dims through Adafruit `setBrightness()` (unchanged from
+  v2.33.1's note).
+
+### Files changed
+- `src/main.cpp` (`scaleStripBufferVideo()` only)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.33.1 to 2.33.2)
+- `docs/CHANGELOG.md`, `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md`
+
+### Not verified
+Built clean, NOT flashed. The check: on the flashed unit (the 15" at .189 — note the 8"
+at .110 still runs 2.32.0), Ember Dahlia, petal depth 51-plus, night brightness: seams
+should read deep ember, never green.
+
+## [2.33.1] - 2026-08-03 (Deep-dim hue fix: orange petals no longer turn green at low brightness)
+
+### Fixed
+- **Colors walked off-theme at low brightness -- the operator's Ember Dahlia photos showed
+  the orange middle face rendering GREEN at brightness 9 while true-to-theme at 209.**
+  Root cause, reproduced numerically from the shipped theme bytes: `scaleStripBufferVideo()`
+  floored every nonzero channel at 1, so at brightness 9 the middle-face `#ff7000` became
+  (2,1,0) at the petal crest and (1,1,0) at the seam -- a green channel that should be 0.07
+  of a step pinned at a full step -- and the WS2812B green die's roughly double luminous
+  efficacy renders 1:1 R:G as green. Only 9 output levels exist at that dim; which channels
+  survive IS the hue.
+- `scaleStripBufferVideo()` now rounds each channel to nearest instead of truncating, and a
+  lit pixel that would round to black keeps only its dominant channel at 1. Deep-dimmed
+  colors now collapse toward their dominant primary (ember stays ember) instead of toward
+  the floor-of-ones mud. Same simulation, after: crest (3,0,0), seam (1,0,0).
+- The lux auto-brightness path feeds this same scaler, so "hue shifts with the lux sensor"
+  is the same defect and gets the same fix.
+
+### Known residue, deliberately untouched
+- `renderAnimFrame()` still dims animation frames through Adafruit `setBrightness()`
+  (truncating, no floor), and two chime animations drive their envelope through
+  `setBrightness()` directly -- animations at deep dim will still hue-collapse toward
+  dominant channels. Separate change with its own risks; not smuggled into this fix.
+- Equal-RGB whites still read cool/greenish at very low codes: that is die efficacy
+  (physics), not scaler math. The former green×0.69 white-balance was removed deliberately
+  in the WLED-parity work; not reintroduced here.
+
+### Files changed
+- `src/main.cpp` (`scaleStripBufferVideo()` only)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.33.0 to 2.33.1)
+- `docs/CHANGELOG.md`, `docs/symmap.json`, `docs/FUNCTION_INVENTORY.md`
+
+### Not verified
+Built clean, NOT flashed and NOT observed on hardware. The check that would confirm it:
+same room, same theme, slider at 9 -- the middle ring should read ember red, not green.
+
+## [2.33.0] - 2026-08-03 (Nudge acknowledgment removed: a nudge is not something you call off)
+
+### Removed
+- **Button acknowledgment of focus nudges, and the escalation that depended on it.**
+  Operator's ruling: it is a reminder nudge, not an alarm to be called off. The
+  acknowledgment is looking up and letting it change what you do next, which happens in
+  the room and not on the device.
+- `FocusReminderScheduler::acknowledge()` and `ackWindowActive()`, the `ackUntilMs_`,
+  `firesSinceAck_` and `repeatPending_` state, and the `ACK_WINDOW_MS` (15 s) and
+  `REPEAT_DELAY_MS` (6 s) constants.
+- The escalation swell. It only ever meant "you did not acknowledge, so I am asking
+  again", so with acknowledgment gone the counter could never reset and every nudge from
+  the second onward would have repeated forever. Every nudge is now identical: the tenth
+  is the same ask as the first.
+
+### Changed
+- The two buttons set the time and nothing else. Previously a press within 15 s of a
+  nudge was eaten as an acknowledgment instead of adjusting the clock.
+- Disabling reminders now clears only `lastFireMs_`, since the other RAM state is gone.
+- Serial line on fire drops the `unacked=` field.
+
+### Why this is written down at length in the source
+A future session looking at `FocusReminderScheduler` will see no acknowledgment path and
+may read it as an oversight. It is not. The comment block above the `private:` section
+records the reasoning so nobody helpfully adds it back.
+
+### Files changed
+- `src/main.cpp` (FocusReminderScheduler, and the button handling in the main loop)
+- `platformio.ini` (`FIRMWARE_VERSION` 2.32.0 to 2.33.0)
+- `docs/CHANGELOG.md`
+
+### Not verified
+Built clean, NOT flashed and NOT observed on hardware. The check that would confirm it:
+fire a nudge on a real unit, press a button during the swell, and confirm the clock
+advances by a minute instead of the nudge being swallowed.
+
+---
+
 ## [2.32.0] - 2026-08-01 (Sacrificial-pixel support removed; every build is now the same 97-LED chain)
 
 Both envs build clean (8": RAM 11.3%, Flash 61.8% / 809,508 B. 15": RAM 11.3%, Flash 61.8% /

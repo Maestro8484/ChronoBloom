@@ -1,10 +1,22 @@
 # ChronoBloom
 
-A 3-ring NeoPixel wall clock on the Seeed XIAO ESP32-C3. Seconds sweep the outer 60-LED ring, minutes on the 24, hours on the 12. Web UI, NTP sync, OTA updates, ambient-light auto dimming, and Focus Reminder nudges for when you lose track of time. The diffused rings bloom like a flower, hence the name.
+A 3-ring NeoPixel wall clock on the Seeed XIAO ESP32-C3. Seconds and minutes share the outer 60-LED ring, the way they share one track of marks on a real clock, and the hour hand is a spoke across the 24 and the 12. Web UI, NTP sync, OTA updates, ambient-light auto dimming, and Focus Reminder nudges for when you lose track of time. The diffused rings bloom like a flower, hence the name.
 
 ![ChronoBloom 8-inch build, Sunflower theme](docs/images/hero.jpg)
 
 [![ChronoBloom Demo](https://img.youtube.com/vi/KO6YdUoTq6A/maxresdefault.jpg)](https://www.youtube.com/watch?v=KO6YdUoTq6A)
+
+## You run the whole thing from a web page
+
+![The ChronoBloom web UI](docs/images/webui.jpg)
+
+No app, no account, no cloud. The clock serves this page itself, so you open it from a phone or a
+laptop on the same wifi and everything is live as you change it: seven face themes, the color and
+brightness of every ring on its own, eleven contrast presets, which animation the chimes and the
+nudges play, the light sensor limits, your time zone, firmware updates and a settings backup.
+
+More on it below, and there's a [full three and a half minute
+tour](https://www.youtube.com/watch?v=FKXAHg8D2Fs) of every setting.
 
 ## Why I built it
 
@@ -67,7 +79,8 @@ Prices swing. Shop around.
 | WS2812B 241-LED ring set | 1 | Sold as a 9-ring kit (WESIRI), about $26. You use the 60, 24, and 12 rings plus 1 loose pixel for the center. Rest goes in the parts bin. Rings come pre-assembled with 3-wire JST leads. | [Amazon](https://www.amazon.com/WESIRI-WS2812B-Individually-Addressable-Controller/dp/B083VWVP3J?tag=maestro8484-20) |
 | VEML7700 lux sensor module | 1 | Optional but worth it. Auto-brightness and dark-room sleep. Usually sold as a 2-pack. | [Amazon](https://www.amazon.com/dp/B0DRRGVTLH?tag=maestro8484-20) |
 | Momentary push buttons | 2 | Time up/down, factory reset combo. Prewired 7mm ones save you a soldering job. | [Amazon](https://www.amazon.com/Gebildet-250VAC-Prewired-Momentary-Railway/dp/B083JWJPW5?tag=maestro8484-20) |
-| USB-C phone charger, 2A | 1 | The clock has a USB-C socket on the back. Any phone charger does it. I run mine on 2A. You almost certainly own one already. | Whatever is in your drawer |
+| USB-C panel-mount socket | 1 | The power inlet. Mounts in the printed stand; its 5V and ground run up to the XIAO's 5V pin. The charger plugs in here, not into the XIAO. | [Amazon](https://www.amazon.com/dp/B0FNN4JMG3?tag=maestro8484-20) |
+| USB-C phone charger, 2A | 1 | Plugs into the panel-mount socket. Any phone charger does it. I run mine on 2A. You almost certainly own one already. | Whatever is in your drawer |
 | 300 ohm resistor | 1, optional | Inline on the LED data line. Good practice, and it costs nothing if you have one. Mine run fine without it, so do not let a missing resistor stop you building. | Parts bin, or any resistor kit |
 | M2.5 fine thread bolts | 8 | The only fastener in the build. They pass through the front three parts and the back cover, and thread into the ring. **Fine thread, not coarse.** Coarse will strip a printed hole. An assorted box is cheaper than buying one size. | [Amazon](https://www.amazon.com/gp/product/B0GT4PFGSK?tag=maestro8484-20) |
 
@@ -145,7 +158,7 @@ D3          GPIO5   Button UP               INPUT_PULLUP, polled
 D9          GPIO9   Button DOWN             INPUT_PULLUP, polled
 D4          GPIO6   I2C SDA                 VEML7700
 D5          GPIO7   I2C SCL                 VEML7700
-5V/VIN      -       LED power rail          Fed from XIAO 5V pin (USB-C VBUS); one charger powers everything
+5V/VIN      -       LED power rail          Fed from the panel-mount USB-C socket in the stand; one charger powers everything
 GND         -       Common ground           Board and LED rings
 3V3         -       VEML7700 power only     Do NOT power LEDs
 ─────────────────────────────────────────────────────────────
@@ -153,6 +166,12 @@ AVOID: GPIO2, GPIO8 (boot strapping); GPIO3/GPIO4 (JTAG)
 ```
 
 Don't hold the DOWN button (GPIO9) at power-on. It's the ESP32-C3 boot pin.
+
+Two USB-C sockets exist in a finished build, and they are not interchangeable. The
+**panel-mount socket in the stand** is the power inlet: the charger plugs in there, and its
+5V and ground run up to the XIAO's 5V/VIN pin. The **XIAO's own USB-C port** is for flashing
+only. They share one power net inside the board, so never have both live at once: unplug the
+stand's power before you connect a flashing cable.
 
 ### Chain order
 

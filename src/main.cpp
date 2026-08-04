@@ -305,6 +305,34 @@ static inline uint32_t gammaColor(uint8_t r, uint8_t g, uint8_t b) {
 // Retained so existing show() call sites need no change.
 static inline void ledCorrect(Adafruit_NeoPixel &strip) { (void)strip; }
 
+// Q3 seam trial (2026-08-04). RAM-only, never persisted, reboot resets to 0.
+// The deep-dim scaler keeps a lit pixel visible through its dominant channel
+// (pure-ember seams); the operator is weighing that against letting such
+// pixels go black (shadow seams). 0 = ember floor, 1 = black. Set with
+// seamTrial=0/1 on POST /settings or /settings/preview, read back as
+// seam_trial in /diag. Exists so the two candidate laws can be A/B'd on the
+// wall; after the ruling, the loser AND this switch get deleted.
+static uint8_t g_seamTrialBlack = 0;
+
+// Hand-contrast trial (2026-08-04, same contract as the seam trial: RAM-only,
+// never persisted, reboot resets, losers deleted after the ruling). The
+// unification of hand colors exposed same-hue hands vanishing into their
+// faces (chronobloom magenta-on-magenta; Ember Dahlia's minute hand 1.2x the
+// LIFTED outer crests). Three candidate mechanisms, bit-maskable so the wall
+// judges each in isolation via handTrial=0..7 on POST /settings[/preview],
+// read back as hand_trial in /diag:
+//   bit 1 - lift cap: petal lift stops at 128, faces never climb into the
+//           hands' 255 ceiling (the Ember minute-hand erosion, measured L=215)
+//   bit 2 - shadow halo: the LEDs flanking the minute hand (60-ring) and the
+//           middle hour hand (24-ring) dim to 15%, a dark notch the hand sits
+//           in - geometric contrast, immune to hue overlap and deep dim
+//   bit 4 - whitened hands: hour/minute colors pulled 55% toward white, the
+//           cream-second-hand trick applied to the time hands
+static uint8_t g_handTrialMask = 0;
+static inline uint8_t handWhiten1(uint8_t c) {
+  return (uint8_t)(c + ((255u - c) * 140u) / 255u);
+}
+
 // Canonical palette-value sanitizer (v2.27.0). Both animationPalette and
 // reminderPalette share ONE 5-option list: indices 0..MOOD_PALETTE_COUNT-1 are
 // mood palettes (MOOD_PALETTE_RINGS), 7 is "Clock colors" (face-mapped, handled
@@ -1405,22 +1433,51 @@ class ClockRenderer {
       buf[i] = static_cast<uint8_t>((uint16_t)buf[i] * f / 255u);
   }
 
-  // Hue-preserving dim. Like scaleStripBuffer, but any channel that was NONZERO
-  // stays >= 1 instead of truncating to 0 — so a color's small secondary channels
-  // don't vanish as it dims, which would walk the hue toward its dominant primary
-  // (the exact "lux shifts hue not brightness" artifact). WLED's color_fade uses
-  // the same video-style floor. Used for the global auto-brightness dim, which
-  // never wants true black (it floors at minAutoBrightness); masterFade keeps the
-  // EXACT scaler above because a dissolve genuinely wants true black at f==0.
+  // Hue-preserving dim. The DOMINANT channel (and any channel equal to it)
+  // rounds to nearest; strictly smaller channels TRUNCATE; a lit pixel that
+  // would land black keeps only its dominant channel at 1.
+  //
+  // Why subordinates truncate (v2.33.2): rounding everything to nearest still
+  // let a weak channel round UP into a tie with its dominant at tiny outputs.
+  // Measured against the live 15" unit's own settings over LAN (2026-08-04,
+  // stock Ember Dahlia, lux-driven brightness 28-79, petalDepth swept): the
+  // gold inner-face seam #FFE25A landed at (2,2,0) and (1,1,0), R:G ties that
+  // the green die's ~2x luminous efficacy renders GREEN — the operator saw
+  // the tinge appear at exactly petalDepth 51, which is where the seam's blue
+  // byte dies in the same math. Truncating subordinates makes quantization
+  // error one-sided: a deep-dimmed color can only get MORE saturated toward
+  // its own dominant hue (gold -> ember, violet -> blue), never walk across
+  // hue toward mud. Channels equal to the dominant share its rounding, so
+  // whites and grays stay neutral. At high brightness floor-vs-round differs
+  // by at most 1 code per channel — invisible.
+  //
+  // The v2.31.x version floored EVERY nonzero channel at 1 (WLED color_fade
+  // style): at brightness 9 the middle face #ff7000 became (2,1,0)/(1,1,0)
+  // and the whole ring read green (operator photo, 2026-08-03). Only a
+  // handful of output levels exist down there; which channels survive is the
+  // whole hue. masterFade keeps the EXACT truncating scaler above because a
+  // dissolve genuinely wants true black at f==0.
   static void scaleStripBufferVideo(Adafruit_NeoPixel &s, uint8_t f) {
     if (f >= 255) return;  // no-op at full
     uint8_t *buf = s.getPixels();
     const uint32_t numBytes = static_cast<uint32_t>(s.numPixels()) * 3u;
     if (f == 0) { for (uint32_t i = 0; i < numBytes; ++i) buf[i] = 0; return; }
-    for (uint32_t i = 0; i < numBytes; ++i) {
-      if (buf[i] == 0) continue;                       // black stays black
-      uint16_t v = (uint16_t)buf[i] * f / 255u;
-      buf[i] = v ? static_cast<uint8_t>(v) : 1;        // nonzero never truncates to 0
+    for (uint32_t i = 0; i + 2u < numBytes; i += 3u) {
+      uint8_t domIdx = 0, domVal = 0;
+      bool lit = false, anyOut = false;
+      for (uint8_t k = 0; k < 3; ++k) {
+        const uint8_t c = buf[i + k];
+        if (c > domVal) { domVal = c; domIdx = k; }
+        if (c) lit = true;
+      }
+      for (uint8_t k = 0; k < 3; ++k) {
+        const uint8_t c = buf[i + k];
+        const uint16_t num = (uint16_t)c * f + (c == domVal ? 127u : 0u);
+        const uint8_t v = static_cast<uint8_t>(num / 255u);
+        buf[i + k] = v;
+        if (v) anyOut = true;
+      }
+      if (lit && !anyOut && !g_seamTrialBlack) buf[i + domIdx] = 1;  // pixel stays visible, hue-true
     }
   }
 
@@ -1453,15 +1510,28 @@ class ClockRenderer {
   void renderAnimFrame(uint32_t now) {
     const ClockSettings &settings = settings_.get();
     const uint8_t br = effectiveBrightness(lastTime_, settings, now);
-    strip_.setBrightness(br);
+    // v2.34.1: animations join the face path — draw at full, dim hue-safely via
+    // scaleStripBufferVideo(br). The old setBrightness(br) here was the last
+    // truncating dim path, and it is why a Golden-hour bloom's gold core read
+    // GREEN at night (operator, 2026-08-04): Adafruit's per-channel truncation
+    // plus the green die's ~2x efficacy, the same disease fixed on the face in
+    // v2.33.1/.2. Side effect, deliberate: animQ1/Q2's setBrightness(animEnv)
+    // fade envelope used to REPLACE the global brightness (night chimes ran at
+    // full); it now composes with it, so animations finally respect auto-dim.
+    // The envelope's own 300 ms edges still truncate — transient, accepted.
+    strip_.setBrightness(255);
 #if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
     if (centerStrip_) {
-      centerStrip_->setBrightness(br);
+      centerStrip_->setBrightness(255);
       centerStrip_->clear();
     }
 #endif
     strip_.clear();
     tickAnimation(now);
+    scaleStripBufferVideo(strip_, br);
+#if CENTER_PIXEL_ENABLED && CENTER_PIXEL_SEPARATE_OUTPUT
+    if (centerStrip_) scaleStripBufferVideo(*centerStrip_, br);
+#endif
     applyMasterFade();
     logShow(now, "anim");
     ledShowBudgeted(strip_, MAX_LED_MILLIAMPS);
@@ -1631,7 +1701,14 @@ class ClockRenderer {
                       uint8_t shade, uint8_t depth) {
     const uint8_t sf = petalFactor(shade, depth);   // 255 crest .. D seam
     const uint8_t D  = petalFactor(255, depth);     // deepest seam factor
-    const uint16_t lifted = (uint16_t)level * 255u / D;
+    uint16_t lifted = (uint16_t)level * 255u / D;
+    // Hand trial bit 1: the LIFT stops adding headroom at 128, so faces never
+    // climb toward the hands' 255 ceiling. A face the user set above 128 stays
+    // where they set it - only lift-added brightness is capped.
+    if (g_handTrialMask & 1) {
+      const uint16_t cap = level > 128u ? level : 128u;
+      if (lifted > cap) lifted = cap;
+    }
     const uint8_t L = lifted > 255u ? 255u : (uint8_t)lifted;
     return scale(gammaColor((uint8_t)((uint16_t)r * sf / 255u),
                             (uint8_t)((uint16_t)g * sf / 255u),
@@ -1670,17 +1747,37 @@ class ClockRenderer {
     setRingPixel(RING_OUTER_60, time.second, color);
   }
 
+  // Hand trial bit 2: dim the two LEDs flanking a hand to 15% of whatever the
+  // face put there - a dark notch the hand sits in. Markers included on
+  // purpose (Q11: the hand wins; a briefly eclipsed mark says where it is).
+  void haloRingPixel(const RingConfig &ring, uint8_t logicalIndex) {
+    if (!(g_handTrialMask & 2)) return;
+    if (logicalIndex >= ring.count) return;
+    const uint16_t p = ringPhysical(ring, logicalIndex);
+    strip_.setPixelColor(p, scale(strip_.getPixelColor(p), 38));
+  }
+  void haloAround(const RingConfig &ring, uint8_t idx) {
+    haloRingPixel(ring, (uint8_t)((idx + 1u) % ring.count));
+    haloRingPixel(ring, (uint8_t)((idx + ring.count - 1u) % ring.count));
+  }
+  // Hand trial bit 4: hands render 55% whitened (the cream-second trick).
+  uint32_t handColor(uint8_t r, uint8_t g, uint8_t b, uint8_t level) {
+    if (g_handTrialMask & 4) { r = handWhiten1(r); g = handWhiten1(g); b = handWhiten1(b); }
+    return ringColor(r, g, b, level);
+  }
+
   void renderMinutes(const ClockTime &time, const ClockSettings &settings) {
+    haloAround(RING_OUTER_60, time.minute);
     setRingPixel(RING_OUTER_60, time.minute,
-                 ringColor(settings.minutesRed, settings.minutesGreen, settings.minutesBlue,
+                 handColor(settings.minutesRed, settings.minutesGreen, settings.minutesBlue,
                            settings.minutesLevel));
   }
 
   void renderHours(const ClockTime &time, const ClockSettings &settings) {
     const uint8_t hour12 = time.hour % 12;
-    const uint32_t middleHour = ringColor(settings.hoursRed, settings.hoursGreen, settings.hoursBlue,
+    const uint32_t middleHour = handColor(settings.hoursRed, settings.hoursGreen, settings.hoursBlue,
                                           settings.hoursLevel);
-    const uint32_t innerHour = ringColor(settings.innerHourRed, settings.innerHourGreen,
+    const uint32_t innerHour = handColor(settings.innerHourRed, settings.innerHourGreen,
                                          settings.innerHourBlue, settings.innerHourLevel);
 
     // Hour hand across the rings. The middle-24 ring is wired one slot ahead of
@@ -1708,6 +1805,7 @@ class ClockRenderer {
       midIdx = (uint8_t)((hour12 * 2u + 3u) % RING_MIDDLE_24.count);
       setRingPixel(RING_INNER_12, inner1, innerHour);
     }
+    haloAround(RING_MIDDLE_24, midIdx);
     setRingPixel(RING_MIDDLE_24, midIdx, middleHour);
   }
 
@@ -4060,6 +4158,12 @@ class WebUi {
       if (server_.hasArg("focusReminder_daysMask")) settings.focusReminder_daysMask = clampByte(server_.arg("focusReminder_daysMask").toInt(), 0, 127);
       if (server_.hasArg("focusReminder_animation")) settings.focusReminder_animation = clampByte(server_.arg("focusReminder_animation").toInt(), 0, 11);
       if (server_.hasArg("focusReminder_durationSeconds")) settings.focusReminder_durationSeconds = clampByte(server_.arg("focusReminder_durationSeconds").toInt(), 1, 60);
+      // Not a setting: RAM-only Q3 trial switch (see g_seamTrialBlack). Rides
+      // this parser so /settings/preview can stage it with night brightness in
+      // one call; deliberately never stored in ClockSettings (EEPROM is full,
+      // and a trial must not persist).
+      if (server_.hasArg("seamTrial")) g_seamTrialBlack = server_.arg("seamTrial").toInt() ? 1 : 0;
+      if (server_.hasArg("handTrial")) g_handTrialMask = (uint8_t)(server_.arg("handTrial").toInt() & 7);
       if (server_.hasArg("animationPalette"))    settings.animationPalette    = sanitizePaletteValue(server_.arg("animationPalette").toInt());
       if (server_.hasArg("animationSpeed"))      settings.animationSpeed      = clampByte(server_.arg("animationSpeed").toInt(), 1, 5);
       if (server_.hasArg("animationBrightness")) settings.animationBrightness = clampByte(server_.arg("animationBrightness").toInt(), 50, 255);
@@ -4206,7 +4310,7 @@ class WebUi {
         ",\"default_outer_ring_offset\":%u,\"outer_ring_offset\":%u"
         ",\"anim_phase\":\"%s\",\"last_anim_source\":\"%s\",\"last_anim_mode\":%u"
         ",\"display_sleep\":%s"
-        ",\"reel_active\":%s,\"master_fade\":%u"
+        ",\"reel_active\":%s,\"master_fade\":%u,\"seam_trial\":%u,\"hand_trial\":%u"
         ",\"est_milliamps\":%lu,\"limiter_brightness\":%u,\"max_milliamps\":%u"
         ",\"timezone\":\"%s\""
         ",\"settings_save_count\":%u}",
@@ -4225,7 +4329,7 @@ class WebUi {
         (unsigned)ds.outerRingOffset,
         renderer_.animPhaseName(), renderer_.lastAnimSource(), (unsigned)renderer_.lastAnimMode(),
         (lux_ && lux_->displaySleeping()) ? "true" : "false",
-        renderer_.reelModeActive() ? "true" : "false", (unsigned)renderer_.masterFade(),
+        renderer_.reelModeActive() ? "true" : "false", (unsigned)renderer_.masterFade(), (unsigned)g_seamTrialBlack, (unsigned)g_handTrialMask,
         (unsigned long)g_lastEstMilliamps, (unsigned)g_lastLimiterBrightness, (unsigned)MAX_LED_MILLIAMPS,
         tzone::get().c_str(),
         (unsigned)settings_.saveCount());
@@ -4745,14 +4849,9 @@ class FocusReminderScheduler {
   void checkAndFire(uint32_t now) {
     const ClockSettings &s = settings_.get();
     if (!s.focusReminder_enabled) {
-      // Disabling reminders clears all RAM scheduling state, so nothing can
-      // strand across a disable/re-enable (a stranded repeatPending_ used to
-      // be able to fire a swell at any hour weeks later) and a stale ack
-      // window can't eat time-adjust presses after a millis() wrap.
-      repeatPending_ = false;
-      firesSinceAck_ = 0;
+      // Disabling reminders clears the RAM scheduling state, so nothing can
+      // strand across a disable/re-enable.
       lastFireMs_ = 0;
-      ackUntilMs_ = 0;
       return;
     }
 
@@ -4785,19 +4884,6 @@ class FocusReminderScheduler {
     }
     if (!inWindow) return;
 
-    // Escalation repeat (v2.31.0): the second and later unacknowledged nudges
-    // play a second swell a few seconds after the first, so a nudge that went
-    // unnoticed in peripheral vision asks twice. Deliberately AFTER the
-    // day/window checks: a repeat straddling the window edge is dropped
-    // rather than played into quiet hours. RAM-only state.
-    if (repeatPending_ && lastFireMs_ != 0 && now - lastFireMs_ >= REPEAT_DELAY_MS) {
-      repeatPending_ = false;
-      triggerReminderAnimation(s.focusReminder_animation, now);
-      ackUntilMs_ = now + ACK_WINDOW_MS;  // the repeat is still acknowledgeable
-      Serial.printf("[FocusReminder] Escalation swell (%u fires unacknowledged)\n",
-                    (unsigned)firesSinceAck_);
-    }
-
     // Interval check: enough time since last fire?
     uint32_t intervalMs = static_cast<uint32_t>(s.focusReminder_intervalMinutes) * 60000UL;
     if (lastFireMs_ != 0 && now - lastFireMs_ < intervalMs) return;
@@ -4807,36 +4893,30 @@ class FocusReminderScheduler {
 
     // Record fire time in RAM only — no EEPROM write needed
     lastFireMs_ = now;
-    ackUntilMs_ = now + ACK_WINDOW_MS;
-    if (firesSinceAck_ < 255) firesSinceAck_++;
-    repeatPending_ = (firesSinceAck_ >= 2);
 
-    Serial.printf("[FocusReminder] Fired at %02d:%02d (interval=%d min, unacked=%u)\n",
-                  t.hour, t.minute, s.focusReminder_intervalMinutes,
-                  (unsigned)firesSinceAck_);
+    Serial.printf("[FocusReminder] Fired at %02d:%02d (interval=%d min)\n",
+                  t.hour, t.minute, s.focusReminder_intervalMinutes);
   }
 
-  // True while a button press should read as "I saw it" rather than a time
-  // adjustment. The window opens ONLY at fire time (ackUntilMs_) and closes
-  // on acknowledgment — acknowledge() must never extend it, or every
-  // subsequent press (including hold-to-repeat time adjustment) would be
-  // eaten as another ack and the buttons would stay dead to time-setting.
-  // Signed delta so a stale deadline is harmless across millis() wrap.
-  bool ackWindowActive(uint32_t now) const {
-    return ackUntilMs_ != 0 && (int32_t)(ackUntilMs_ - now) > 0;
-  }
-
-  // Button acknowledgment (v2.31.0): closes the ack window, clears the
-  // escalation counter, and restarts the interval from this moment. The very
-  // next press adjusts time normally.
-  void acknowledge(uint32_t now) {
-    firesSinceAck_ = 0;
-    repeatPending_ = false;
-    lastFireMs_ = now;
-    ackUntilMs_ = 0;
-    Serial.println("[FocusReminder] Acknowledged by button — interval restarted");
-  }
-
+  // WHY THERE IS NO ACKNOWLEDGMENT HERE, AND WHY IT MUST NOT COME BACK.
+  //
+  // v2.31.0 added a button acknowledgment: press a button within 15 s of a
+  // nudge and it counted as "I saw it", restarted the interval, and reset an
+  // escalation counter that made every later nudge swell twice instead of
+  // once. All of that was removed in v2.33.0, deliberately, on the operator's
+  // ruling. It is not a missing feature.
+  //
+  // In his words: it is a reminder nudge, not an alarm to be called off. The
+  // acknowledgment is looking up and letting it change what you do next. That
+  // happens in the room, not on the device, and the clock has no way to
+  // observe it and no business trying.
+  //
+  // Two consequences follow, and both are the point rather than side effects:
+  // there is nothing to dismiss, so the clock can never be a thing you swipe
+  // away without registering, which is the exact failure mode of every alarm
+  // that does not work on him. And every nudge is identical, so the tenth is
+  // the same ask as the first. No escalation, no counter, no scoring, nothing
+  // that could read as the clock keeping track of how you are doing.
  private:
   uint8_t getDayOfWeek() {
     time_t now = time(nullptr);
@@ -4853,11 +4933,6 @@ class FocusReminderScheduler {
   ClockRenderer &renderer_;
   SettingsStore &settings_;
   uint32_t lastFireMs_ = 0;
-  uint32_t ackUntilMs_ = 0;     // ack window deadline; set at fire time only, cleared by ack
-  uint8_t firesSinceAck_ = 0;   // nudges since the last button acknowledgment (RAM only)
-  bool repeatPending_ = false;  // escalation: play a second swell after the current fire
-  static constexpr uint32_t REPEAT_DELAY_MS = 6000;   // past the longest nudge animation (~4.4s)
-  static constexpr uint32_t ACK_WINDOW_MS = 15000;    // press within this of a fire = acknowledge
 };
 
 class ButtonInput {
@@ -5306,16 +5381,12 @@ void loop() {
   {
     int upDelta = buttons.consumeUp();
     int downDelta = buttons.consumeDown();
-    if ((upDelta != 0 || downDelta != 0) && reminderScheduler.ackWindowActive(now)) {
-      // During and just after a nudge, a press means "I saw it" — consuming it
-      // as a time adjustment here was the v2.30 behavior, which corrupted the
-      // clock as the only physical response to a reminder (v2.31.0).
-      reminderScheduler.acknowledge(now);
-      renderer.setStatus(STATUS_BUTTON, 700);
-    } else {
-      if (upDelta != 0) { timeModel.addMinutes(upDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
-      if (downDelta != 0) { timeModel.addMinutes(downDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
-    }
+    // The buttons set the time, and that is all they do. v2.31.0 briefly made a
+    // press during a nudge mean "I saw it" instead; removed in v2.33.0, see the
+    // note in FocusReminderScheduler for why. A nudge is not something you call
+    // off, so a press near one is just someone setting the clock.
+    if (upDelta != 0) { timeModel.addMinutes(upDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
+    if (downDelta != 0) { timeModel.addMinutes(downDelta); timeSync.noteManualSet(); renderer.setStatus(STATUS_BUTTON, 700); }
   }
 
   // Time-truth cue (v2.31.0): until NTP lands or the user sets the time by

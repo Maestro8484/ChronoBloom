@@ -83,11 +83,13 @@ to the next one. The fix is replacing that one pixel, not the whole ring.
 ### Power
 | Pin       | Function                | Notes                              |
 |-----------|-------------------------|------------------------------------|
-| 5V / VIN  | Board input AND LED power rail | This build feeds the whole board through this pin, not through the USB-C socket. The 5V pin and the USB-C VBUS line are tied to the same internal net, so power put on either one reaches both. The rings tap this same pin; there is no separate LED supply |
+| 5V / VIN  | Board input AND LED power rail | Fed from the USB-C panel-mount socket in the stand, the build's power inlet. The XIAO's own USB-C port is for flashing only; its VBUS line and this pin share one internal net, so power put on either one reaches both. The rings tap this same pin; there is no separate LED supply |
 | GND       | Common ground           | Rings share ground with the XIAO   |
-| 3V3       | Logic power only        | **Do NOT power LEDs from 3.3V**    |
+| 3V3       | Logic power only        | **Do NOT power LEDs from 3.3V.** The VEML7700 lux sensor is its only load |
 
-**Never power the board from the 5V pin and the USB-C cable at the same time.**
+**Never power the board from the 5V pin and the XIAO's own USB-C port at the same
+time.** The hazard is a flashing cable in the XIAO's socket while the stand's
+panel-mount inlet is live; the panel-mount inlet alone is the normal route.
 Because the two are the same net, doing both back-feeds one source into the
 other with nothing in between to stop it. That is only safe with a blocking
 diode (an "OR-ing" or ideal-diode circuit) between the two inputs. This board
